@@ -1,27 +1,32 @@
 import 'dart:async';
-import 'dart:collection';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:onesignal_flutter/onesignal_flutter.dart'; // إضافة OneSignal
+import 'package:onesignal_flutter/onesignal_flutter.dart';
 
 import 'webview_popup.dart';
-import 'constants.dart';
-import 'util.dart';
+import 'util.dart'; // تأكد من وجود دالة isNetworkAvailable هنا
 
 Future main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // إعداد OneSignal
+  // 1. إعداد OneSignal
+  // ملاحظة: يمكنك تقليل مستوى اللوج في النسخة النهائية بوضع OSLogLevel.none
   OneSignal.Debug.setLogLevel(OSLogLevel.verbose);
   OneSignal.initialize("e542557c-fbed-4ca6-96fa-0b37e0d21490");
+  
+  // طلب إذن الإشعارات (يظهر للمستخدم عند فتح التطبيق لأول مرة)
   OneSignal.Notifications.requestPermission(true);
 
   if (!kIsWeb && kDebugMode && defaultTargetPlatform == TargetPlatform.android) {
     await InAppWebViewController.setWebContentsDebuggingEnabled(kDebugMode);
   }
-  runApp(const MaterialApp(home: MyApp()));
+  
+  runApp(const MaterialApp(
+    debugShowCheckedModeBanner: false,
+    home: MyApp(),
+  ));
 }
 
 class MyApp extends StatefulWidget {
@@ -36,19 +41,27 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   @override
   void initState() {
-    WidgetsBinding.instance.addObserver(this);
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     setupOneSignalListeners();
   }
 
+  // 2. إدارة التفاعل مع الإشعارات (النقر على زر قبول)
   void setupOneSignalListeners() {
-    // الاستماع للنقر على الإشعار أو أزرار الإشعار (مثل زر قبول)
     OneSignal.Notifications.addClickListener((event) {
-      final actionId = event.result.actionId;
-      // إذا ضغط السائق على زر قبول في الإشعار
+      final actionId = event.result.actionId; // الـ ID الخاص بالزر (مثل 'accept')
+      final data = event.notification.additionalData;
+      
+      // استخراج المعرفات المرسلة من تطبيق طالب الرحلة
+      final String rideId = data?['rideId']?.toString() ?? "";
+      final String requestId = data?['requestId']?.toString() ?? "";
+
       if (actionId == "accept") {
+        // توجيه الـ WebView لصفحة القبول مع تمرير البيانات في الرابط
+        String acceptUrl = "https://driver.zoonasd.com/accept-ride.html?rideId=$rideId&requestId=$requestId";
+        
         webViewController?.loadUrl(
-          urlRequest: URLRequest(url: WebUri("https://driver.zoonasd.com/accept-ride.html"))
+          urlRequest: URLRequest(url: WebUri(acceptUrl))
         );
       }
     });
@@ -58,9 +71,10 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       supportMultipleWindows: true,
       javaScriptCanOpenWindowsAutomatically: true,
       applicationNameForUserAgent: 'Tirhal Driver App',
-      userAgent: 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.5304.105 Mobile Safari/537.36',
+      // UserAgent حديث لضمان توافق الموقع والـ PWA
+      userAgent: 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Mobile Safari/537.36',
       disableDefaultErrorPage: true,
-      allowsInlineMediaPlayback: true, // مهم للصوت
+      allowsInlineMediaPlayback: true, // مهم جداً لتشغيل صوت التنبيه داخل المتصفح
       limitsNavigationsToAppBoundDomains: true);
 
   @override
@@ -72,25 +86,15 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (!kIsWeb) {
-      if (webViewController != null && defaultTargetPlatform == TargetPlatform.android) {
-        if (state == AppLifecycleState.paused) {
-          pauseAll();
-        } else {
-          resumeAll();
-        }
+    if (!kIsWeb && webViewController != null && defaultTargetPlatform == TargetPlatform.android) {
+      if (state == AppLifecycleState.paused) {
+        webViewController?.pause();
+        webViewController?.pauseTimers();
+      } else if (state == AppLifecycleState.resumed) {
+        webViewController?.resume();
+        webViewController?.resumeTimers();
       }
     }
-  }
-
-  void pauseAll() {
-    if (defaultTargetPlatform == TargetPlatform.android) { webViewController?.pause(); }
-    webViewController?.pauseTimers();
-  }
-
-  void resumeAll() {
-    if (defaultTargetPlatform == TargetPlatform.android) { webViewController?.resume(); }
-    webViewController?.resumeTimers();
   }
 
   @override
@@ -98,62 +102,69 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     return WillPopScope(
       onWillPop: () async {
         final controller = webViewController;
-        if (controller != null) {
-          if (await controller.canGoBack()) {
-            controller.goBack();
-            return false;
-          }
+        if (controller != null && await controller.canGoBack()) {
+          controller.goBack();
+          return false;
         }
         return true;
       },
       child: Scaffold(
-          appBar: AppBar(toolbarHeight: 0),
+          appBar: AppBar(toolbarHeight: 0, backgroundColor: Colors.black),
           body: Column(children: <Widget>[
             Expanded(
-              child: Stack(
-                children: [
-                  FutureBuilder<bool>(
-                    future: isNetworkAvailable(),
-                    builder: (context, snapshot) {
-                      if (!snapshot.hasData) return Container();
-                      final bool networkAvailable = snapshot.data ?? false;
-                      final cacheMode = networkAvailable ? CacheMode.LOAD_DEFAULT : CacheMode.LOAD_CACHE_ELSE_NETWORK;
-                      final webViewInitialSettings = sharedSettings.copy();
-                      webViewInitialSettings.cacheMode = cacheMode;
+              child: FutureBuilder<bool>(
+                future: isNetworkAvailable(),
+                builder: (context, snapshot) {
+                  if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+                  
+                  final bool networkAvailable = snapshot.data ?? false;
+                  final webViewInitialSettings = sharedSettings.copy();
+                  webViewInitialSettings.cacheMode = networkAvailable 
+                      ? CacheMode.LOAD_DEFAULT 
+                      : CacheMode.LOAD_CACHE_ELSE_NETWORK;
 
-                      return InAppWebView(
-                        key: webViewKey,
-                        initialUrlRequest: URLRequest(url: WebUri("https://driver.zoonasd.com/")),
-                        initialSettings: webViewInitialSettings,
-                        onWebViewCreated: (controller) {
-                          webViewController = controller;
-                        },
-                        shouldOverrideUrlLoading: (controller, navigationAction) async {
-                          final uri = navigationAction.request.url;
-                          if (uri != null && navigationAction.isForMainFrame && 
-                              uri.host != "driver.zoonasd.com" && await canLaunchUrl(uri)) {
-                            launchUrl(uri);
-                            return NavigationActionPolicy.CANCEL;
-                          }
-                          return NavigationActionPolicy.ALLOW;
-                        },
-                        onCreateWindow: (controller, createWindowAction) async {
-                          showDialog(
-                            context: context,
-                            builder: (context) {
-                              final popupWebViewSettings = sharedSettings.copy();
-                              popupWebViewSettings.supportMultipleWindows = false;
-                              return WebViewPopup(
-                                  createWindowAction: createWindowAction,
-                                  popupWebViewSettings: popupWebViewSettings);
-                            },
-                          );
-                          return true;
+                  return InAppWebView(
+                    key: webViewKey,
+                    initialUrlRequest: URLRequest(url: WebUri("https://driver.zoonasd.com/")),
+                    initialSettings: webViewInitialSettings,
+                    onWebViewCreated: (controller) {
+                      webViewController = controller;
+                    },
+                    // 3. الربط السحري: مراقبة الروابط لتسجيل دخول السائق في OneSignal
+                    onLoadStop: (controller, url) async {
+                      if (url != null && url.queryParameters.containsKey('driver_id')) {
+                        String? driverId = url.queryParameters['driver_id'];
+                        if (driverId != null && driverId.isNotEmpty) {
+                          // تسجيل المعرف في OneSignal لربط هذا الجهاز بهذا السائق
+                          OneSignal.login(driverId);
+                          debugPrint("OneSignal: Device linked to Driver ID: $driverId");
+                        }
+                      }
+                    },
+                    shouldOverrideUrlLoading: (controller, navigationAction) async {
+                      final uri = navigationAction.request.url;
+                      if (uri != null && navigationAction.isForMainFrame && 
+                          uri.host != "driver.zoonasd.com" && await canLaunchUrl(uri)) {
+                        launchUrl(uri, mode: LaunchMode.externalApplication);
+                        return NavigationActionPolicy.CANCEL;
+                      }
+                      return NavigationActionPolicy.ALLOW;
+                    },
+                    onCreateWindow: (controller, createWindowAction) async {
+                      showDialog(
+                        context: context,
+                        builder: (context) {
+                          final popupWebViewSettings = sharedSettings.copy();
+                          popupWebViewSettings.supportMultipleWindows = false;
+                          return WebViewPopup(
+                              createWindowAction: createWindowAction,
+                              popupWebViewSettings: popupWebViewSettings);
                         },
                       );
+                      return true;
                     },
-                  )
-                ],
+                  );
+                },
               ),
             ),
           ])),
