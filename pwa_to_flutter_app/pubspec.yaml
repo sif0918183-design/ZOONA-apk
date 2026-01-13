@@ -1,9 +1,6 @@
 name: pwa_to_flutter_app
-description: Tirhal Driver App - PWA to Flutter with OneSignal Notifications and Intense Alerts.
-
-# يمنع نشر الحزمة على pub.dev
+description: Tirhal Driver App - PWA to Flutter with OneSignal.
 publish_to: 'none'
-
 version: 1.0.0+1
 
 environment:
@@ -13,25 +10,14 @@ dependencies:
   flutter:
     sdk: flutter
   
-  # المكتبة الأساسية للـ WebView المتطور (الإصدار المستقر للإنتاج)
+  # المكتبات الأساسية
   flutter_inappwebview: ^6.0.0
-  
-  # مكتبة OneSignal للإشعارات (الإصدار 5 يدعم أحدث ميزات أندرويد 13+)
   onesignal_flutter: ^5.0.0
-  
-  # مكتبة الاهتزاز للتحكم في أنماط الاهتزاز القوية (المطلوبة لشرطك)
   vibration: ^1.8.4
-  
-  # للتحقق من وجود إنترنت
+  audioplayers: ^5.2.1 # مكتبة تشغيل ملف الصوت المحلي
   connectivity_plus: ^5.0.0
-  
-  # لفتح الروابط الخارجية أو أرقام الهواتف (مثل اتصال سريع بالعميل)
   url_launcher: ^6.2.0
-  
-  # لحفظ إعدادات التطبيق محلياً
   shared_preferences: ^2.2.0
-
-  # أيقونات iOS الافتراضية
   cupertino_icons: ^1.0.2
 
 dev_dependencies:
@@ -40,18 +26,8 @@ dev_dependencies:
   flutter_lints: ^2.0.0
 
 flutter:
-  # تفعيل Material Design لواجهة أندرويد الحديثة
   uses-material-design: true
 
-  # تعريف الأصول (Assets) لتضمين ملف الصوت إذا أردت تشغيله من الكود المصدري
+  # تعريف ملف الصوت المحلي
   assets:
-    - assets/sounds/
-    # ملاحظة: تأكد من إنشاء مجلد assets/sounds ووضع ملف الصوت فيه إذا قررت استدعاءه محلياً
-
-  # لإضافة خطوط مخصصة مثل Tajawal لضمان تطابق شكل التطبيق مع الموقع
-  fonts:
-    - family: Tajawal
-      fonts:
-        - asset: assets/fonts/Tajawal-Regular.ttf
-        - asset: assets/fonts/Tajawal-Bold.ttf
-          weight: 700
+    - assets/ride_request_sound.wav
