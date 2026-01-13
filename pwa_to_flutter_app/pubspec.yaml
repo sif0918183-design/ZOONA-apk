@@ -1,5 +1,5 @@
 name: pwa_to_flutter_app
-description: Tirhal Driver App - PWA to Flutter with OneSignal Notifications.
+description: Tirhal Driver App - PWA to Flutter with OneSignal Notifications and Intense Alerts.
 
 # يمنع نشر الحزمة على pub.dev
 publish_to: 'none'
@@ -13,40 +13,45 @@ dependencies:
   flutter:
     sdk: flutter
   
-  # المكتبة الأساسية للـ WebView المتطور
-  flutter_inappwebview: ^6.0.0-beta.21
+  # المكتبة الأساسية للـ WebView المتطور (الإصدار المستقر للإنتاج)
+  flutter_inappwebview: ^6.0.0
   
-  # مكتبة OneSignal للإشعارات (الإصدار 5 يدعم أحدث ميزات أندرويد)
+  # مكتبة OneSignal للإشعارات (الإصدار 5 يدعم أحدث ميزات أندرويد 13+)
   onesignal_flutter: ^5.0.0
   
-  # للتحقق من وجود إنترنت (مطلوب في الكود الخاص بك)
-  connectivity_plus: ^3.0.2
+  # مكتبة الاهتزاز للتحكم في أنماط الاهتزاز القوية (المطلوبة لشرطك)
+  vibration: ^1.8.4
   
-  # لفتح الروابط الخارجية أو أرقام الهواتف
-  url_launcher: ^6.1.6
+  # للتحقق من وجود إنترنت
+  connectivity_plus: ^5.0.0
   
-  # لحفظ إعدادات التطبيق محلياً (مثل حالة تثبيت PWA)
-  shared_preferences: ^2.0.15
+  # لفتح الروابط الخارجية أو أرقام الهواتف (مثل اتصال سريع بالعميل)
+  url_launcher: ^6.2.0
+  
+  # لحفظ إعدادات التطبيق محلياً
+  shared_preferences: ^2.2.0
 
-  # أيقونات iOS
+  # أيقونات iOS الافتراضية
   cupertino_icons: ^1.0.2
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^2.0.1
+  flutter_lints: ^2.0.0
 
 flutter:
-  # تفعيل Material Design
+  # تفعيل Material Design لواجهة أندرويد الحديثة
   uses-material-design: true
 
-  # تعريف الأصول (Assets)
-  # تأكد من وضع ملف الصوت في هذا المسار إذا كنت تريد الوصول إليه من داخل كود دارت أيضاً
+  # تعريف الأصول (Assets) لتضمين ملف الصوت إذا أردت تشغيله من الكود المصدري
   assets:
-    - assets/ride_request_sound.wav
+    - assets/sounds/
+    # ملاحظة: تأكد من إنشاء مجلد assets/sounds ووضع ملف الصوت فيه إذا قررت استدعاءه محلياً
 
-  # إذا كنت تريد استخدام خطوط مخصصة يمكنك إضافتها هنا
-  # fonts:
-  #   - family: Cairo
-  #     fonts:
-  #       - asset: fonts/Cairo-Regular.ttf
+  # لإضافة خطوط مخصصة مثل Tajawal لضمان تطابق شكل التطبيق مع الموقع
+  fonts:
+    - family: Tajawal
+      fonts:
+        - asset: assets/fonts/Tajawal-Regular.ttf
+        - asset: assets/fonts/Tajawal-Bold.ttf
+          weight: 700
