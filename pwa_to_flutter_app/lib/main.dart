@@ -4,19 +4,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:onesignal_flutter/onesignal_flutter.dart';
+import 'package:audioplayers/audioplayers.dart'; // مكتبة الصوت
+import 'package:vibration/vibration.dart';      // مكتبة الاهتزاز
 
 import 'webview_popup.dart';
-import 'util.dart'; // تأكد من وجود دالة isNetworkAvailable هنا
+import 'util.dart'; 
 
 Future main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
   // 1. إعداد OneSignal
-  // ملاحظة: يمكنك تقليل مستوى اللوج في النسخة النهائية بوضع OSLogLevel.none
   OneSignal.Debug.setLogLevel(OSLogLevel.verbose);
   OneSignal.initialize("e542557c-fbed-4ca6-96fa-0b37e0d21490");
   
-  // طلب إذن الإشعارات (يظهر للمستخدم عند فتح التطبيق لأول مرة)
+  // طلب إذن الإشعارات
   OneSignal.Notifications.requestPermission(true);
 
   if (!kIsWeb && kDebugMode && defaultTargetPlatform == TargetPlatform.android) {
@@ -38,6 +39,9 @@ class MyApp extends StatefulWidget {
 class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   final GlobalKey webViewKey = GlobalKey();
   InAppWebViewController? webViewController;
+  
+  // تعريف مشغل الصوت كمتغير دائم
+  final AudioPlayer audioPlayer = AudioPlayer();
 
   @override
   void initState() {
@@ -46,24 +50,37 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     setupOneSignalListeners();
   }
 
-  // 2. إدارة التفاعل مع الإشعارات (النقر على زر قبول)
+  // 2. إدارة التفاعل مع الإشعارات + الصوت + الاهتزاز
   void setupOneSignalListeners() {
-    OneSignal.Notifications.addClickListener((event) {
-      final actionId = event.result.actionId; // الـ ID الخاص بالزر (مثل 'accept')
+    OneSignal.Notifications.addClickListener((event) async {
+      
+      // --- التعديل الجديد: تشغيل التنبيه العدواني ---
+      
+      // 1. تشغيل ملف الصوت المحلي (assets/ride_request_sound.wav)
+      try {
+        await audioPlayer.play(AssetSource('ride_request_sound.wav'));
+      } catch (e) {
+        debugPrint("Error playing sound: $e");
+      }
+
+      // 2. تفعيل الاهتزاز بنمط متكرر (500ms اهتزاز، 200ms توقف)
+      if (await Vibration.hasVibrator() ?? false) {
+        Vibration.vibrate(pattern: [500, 200, 500, 200, 500, 200], repeat: 1);
+      }
+
+      // --- استكمال منطق التوجيه السابق ---
+      final actionId = event.result.actionId; 
       final data = event.notification.additionalData;
       
-      // استخراج المعرفات المرسلة من تطبيق طالب الرحلة
       final String rideId = data?['rideId']?.toString() ?? "";
       final String requestId = data?['requestId']?.toString() ?? "";
 
-      if (actionId == "accept") {
-        // توجيه الـ WebView لصفحة القبول مع تمرير البيانات في الرابط
-        String acceptUrl = "https://driver.zoonasd.com/accept-ride.html?rideId=$rideId&requestId=$requestId";
-        
-        webViewController?.loadUrl(
-          urlRequest: URLRequest(url: WebUri(acceptUrl))
-        );
-      }
+      // فتح صفحة قبول الرحلة فوراً عند النقر على الإشعار أو زر 'accept'
+      String acceptUrl = "https://driver.zoonasd.com/accept-ride.html?rideId=$rideId&requestId=$requestId";
+      
+      webViewController?.loadUrl(
+        urlRequest: URLRequest(url: WebUri(acceptUrl))
+      );
     });
   }
 
@@ -71,15 +88,16 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       supportMultipleWindows: true,
       javaScriptCanOpenWindowsAutomatically: true,
       applicationNameForUserAgent: 'Tirhal Driver App',
-      // UserAgent حديث لضمان توافق الموقع والـ PWA
       userAgent: 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Mobile Safari/537.36',
       disableDefaultErrorPage: true,
-      allowsInlineMediaPlayback: true, // مهم جداً لتشغيل صوت التنبيه داخل المتصفح
+      allowsInlineMediaPlayback: true, 
+      mediaPlaybackRequiresUserGesture: false, // تسمح بتشغيل الوسائط تلقائياً بعد تفاعل المستخدم مع التطبيق
       limitsNavigationsToAppBoundDomains: true);
 
   @override
   void dispose() {
     webViewController = null;
+    audioPlayer.dispose(); // إغلاق مشغل الصوت عند إغلاق التطبيق
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -99,14 +117,15 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: () async {
+    // استخدمنا PopScope بدلاً من WillPopScope لأنها الأحدث في إصدارات Flutter الجديدة
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) async {
+        if (didPop) return;
         final controller = webViewController;
         if (controller != null && await controller.canGoBack()) {
           controller.goBack();
-          return false;
         }
-        return true;
       },
       child: Scaffold(
           appBar: AppBar(toolbarHeight: 0, backgroundColor: Colors.black),
@@ -130,12 +149,10 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                     onWebViewCreated: (controller) {
                       webViewController = controller;
                     },
-                    // 3. الربط السحري: مراقبة الروابط لتسجيل دخول السائق في OneSignal
                     onLoadStop: (controller, url) async {
                       if (url != null && url.queryParameters.containsKey('driver_id')) {
                         String? driverId = url.queryParameters['driver_id'];
                         if (driverId != null && driverId.isNotEmpty) {
-                          // تسجيل المعرف في OneSignal لربط هذا الجهاز بهذا السائق
                           OneSignal.login(driverId);
                           debugPrint("OneSignal: Device linked to Driver ID: $driverId");
                         }
