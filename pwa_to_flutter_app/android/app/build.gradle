@@ -25,6 +25,9 @@ apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
 apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
 
+// ⭐ إضافة OneSignal Plugin
+apply plugin: 'com.onesignal.androidsdk.onesignal-gradle-plugin'
+
 android {
     // تحديث الإصدار إلى 34 ليتوافق مع OneSignal
     compileSdkVersion 34
@@ -51,22 +54,66 @@ android {
 
         // لدعم الإشعارات المنبثقة فوق الشاشة
         multiDexEnabled true
+        
+        // ⭐⭐ إضافة مهمة جداً لـ OneSignal ⭐⭐
+        manifestPlaceholders = [
+            onesignal_app_id: 'e542557c-fbed-4ca6-96fa-0b37e0d21490',
+            onesignal_google_project_number: 'REMOTE',
+            // إضافة للموقع إذا تحتاجه
+            onesignal_notification_icon: '@mipmap/ic_launcher'
+        ]
     }
 
     buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+            // تمكين الـ shrink للأخطاء
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
         release {
             // ملاحظة: ستحتاج لاحقاً لإضافة signingConfig خاص بمتجر جوجل
             signingConfig signingConfigs.debug
+            
+            // تمكين التصغير مع الاحتفاظ بـ OneSignal
+            minifyEnabled true
+            shrinkResources true
+            
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
-
-    dependencies {
-        implementation 'com.google.android.material:material:1.6.0'
-        // تأكد من إضافة OneSignal إذا لم تكن مضافة تلقائياً
-        implementation 'com.onesignal:OneSignal:[4.0.0, 4.99.99]'
+    
+    // ⭐ إعدادات لحل مشاكل Build
+    lintOptions {
+        checkReleaseBuilds false
+        abortOnError false
+    }
+    
+    // ⭐ تمكين viewBinding
+    buildFeatures {
+        viewBinding true
     }
 }
 
 flutter {
     source '../..'
+}
+
+dependencies {
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
+    implementation 'com.google.android.material:material:1.11.0'
+    
+    // ⭐ OneSignal بأحدث إصدار مستقر
+    implementation 'com.onesignal:OneSignal:[4.8.8, 4.99.99]'
+    
+    // ⭐ مكتبات مساعدة مهمة
+    implementation 'androidx.core:core-ktx:1.12.0'
+    implementation 'androidx.multidex:multidex:2.0.1'
+    implementation 'androidx.browser:browser:1.7.0'
+    
+    // ⭐ لتحسين WebView
+    implementation 'androidx.webkit:webkit:1.9.0'
+    
+    // ⭐ للصوت (اختياري)
+    implementation 'androidx.media:media:1.7.0'
 }
