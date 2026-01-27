@@ -25,10 +25,8 @@ apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
 apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
 
-// ⭐ OneSignal Gradle Plugin - إزالة هذه السطر أو تعليقه
-// apply plugin: 'com.onesignal.androidsdk.onesignal-gradle-plugin'
-
 android {
+    // تحديث الإصدار إلى 34 ليتوافق مع OneSignal
     compileSdkVersion 34
     ndkVersion flutter.ndkVersion
 
@@ -43,49 +41,32 @@ android {
 
     defaultConfig {
         applicationId "com.pichillilorenzo.pwa_to_flutter_app"
+        
+        // تحديثSdkVersion لضمان عمل الـ WebView وأندرويد 14
         minSdkVersion 21
         targetSdkVersion 34
+        
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
+
+        // لدعم الإشعارات المنبثقة فوق الشاشة
         multiDexEnabled true
-        
-        // ⭐ إعدادات OneSignal الأساسية فقط
-        manifestPlaceholders = [
-            onesignal_app_id: 'e542557c-fbed-4ca6-96fa-0b37e0d21490',
-            onesignal_google_project_number: 'REMOTE'
-        ]
     }
 
     buildTypes {
-        debug {
-            signingConfig signingConfigs.debug
-        }
         release {
+            // ملاحظة: ستحتاج لاحقاً لإضافة signingConfig خاص بمتجر جوجل
             signingConfig signingConfigs.debug
-            // ⭐ تعطيل التصغير مؤقتاً لحل المشاكل
-            minifyEnabled false
-            shrinkResources false
         }
     }
-    
-    lintOptions {
-        checkReleaseBuilds false
-        abortOnError false
+
+    dependencies {
+        implementation 'com.google.android.material:material:1.6.0'
+        // تأكد من إضافة OneSignal إذا لم تكن مضافة تلقائياً
+        implementation 'com.onesignal:OneSignal:[4.0.0, 4.99.99]'
     }
 }
 
 flutter {
     source '../..'
-}
-
-dependencies {
-    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
-    implementation 'com.google.android.material:material:1.11.0'
-    
-    // ⭐ OneSignal بإصدار ثابت
-    implementation 'com.onesignal:OneSignal:4.8.8'
-    
-    // مكتبات مساعدة
-    implementation 'androidx.core:core-ktx:1.12.0'
-    implementation 'androidx.multidex:multidex:2.0.1'
 }
