@@ -2,44 +2,41 @@ name: Build Tirhal Driver APK
 
 on:
   push:
-    branches: [ main, master ] # سيعمل عند الرفع على الفرع الرئيسي
+    branches:
+      - '**'
+  pull_request:
+    branches:
+      - '**'
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. جلب الكود من المستودع باستخدام أحدث إصدار
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # 2. إعداد بيئة فلاتر
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.16.0' # إصدار مستقر حديث
+          flutter-version: '3.16.0'
           channel: 'stable'
 
-      # 3. تحميل المكتبات (Dependencies)
       - name: Get Dependencies
         run: flutter pub get
         working-directory: pwa_to_flutter_app
 
-      # 4. توليد الأيقونات (إذا أضفت أيقونة في مجلد assets)
-      # سيتم تخطي هذه الخطوة إذا لم تكن قد أضفت إعدادات flutter_launcher_icons بعد
       - name: Generate App Icons
         run: flutter pub run flutter_launcher_icons || echo "Icons generation skipped"
         working-directory: pwa_to_flutter_app
 
-      # 5. بناء ملف الـ APK بصيغة Release
       - name: Build APK
         run: flutter build apk --release
         working-directory: pwa_to_flutter_app
 
-      # 6. رفع ملف الـ APK الناتج (باستخدام v4 المدعوم حالياً)
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: Tirhal-Driver-App-Release
           path: pwa_to_flutter_app/build/app/outputs/flutter-apk/app-release.apk
-          retention-days: 7 # سيحتفظ بالملف لمدة 7 أيام للتحميل
+          retention-days: 7
