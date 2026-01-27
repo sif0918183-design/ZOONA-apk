@@ -52,35 +52,80 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   // 2. إدارة التفاعل مع الإشعارات + الصوت + الاهتزاز
   void setupOneSignalListeners() {
-    OneSignal.Notifications.addClickListener((event) async {
-      
-      // --- التعديل الجديد: تشغيل التنبيه العدواني ---
-      
-      // 1. تشغيل ملف الصوت المحلي (assets/ride_request_sound.wav)
-      try {
-        await audioPlayer.play(AssetSource('ride_request_sound.wav'));
-      } catch (e) {
-        debugPrint("Error playing sound: $e");
-      }
+    // الاستماع للإشعارات عند النقر عليها (في الخلفية)
+    OneSignal.Notifications.addClickListener((event) {
+      _handleRideNotification(event.notification);
+    });
 
-      // 2. تفعيل الاهتزاز بنمط متكرر (500ms اهتزاز، 200ms توقف)
-      if (await Vibration.hasVibrator() ?? false) {
-        Vibration.vibrate(pattern: [500, 200, 500, 200, 500, 200], repeat: 1);
-      }
+    // الاستماع للإشعارات أثناء فتح التطبيق (في المقدمة)
+    OneSignal.Notifications.addForegroundWillDisplayListener((event) {
+      // منع ظهور الإشعار الافتراضي واستخدام نافذتنا الخاصة بدلاً منه
+      event.preventDefault();
+      _handleRideNotification(event.notification);
+    });
+  }
 
-      // --- استكمال منطق التوجيه السابق ---
-      final actionId = event.result.actionId; 
-      final data = event.notification.additionalData;
-      
-      final String rideId = data?['rideId']?.toString() ?? "";
-      final String requestId = data?['requestId']?.toString() ?? "";
+  // معالج موحد لطلبات الرحلة
+  void _handleRideNotification(OSNotification notification) async {
+    final data = notification.additionalData;
+    if (data == null) return;
 
-      // فتح صفحة قبول الرحلة فوراً عند النقر على الإشعار أو زر 'accept'
-      String acceptUrl = "https://driver.zoonasd.com/accept-ride.html?rideId=$rideId&requestId=$requestId";
-      
-      webViewController?.loadUrl(
-        urlRequest: URLRequest(url: WebUri(acceptUrl))
-      );
+    final String rideId = data['rideId']?.toString() ?? "";
+    final String requestId = data['requestId']?.toString() ?? "";
+
+    if (rideId.isEmpty) return;
+
+    // 1. تشغيل صوت الرنين بشكل متكرر
+    try {
+      await audioPlayer.setReleaseMode(ReleaseMode.loop);
+      await audioPlayer.play(AssetSource('ride_request_sound.wav'));
+    } catch (e) {
+      debugPrint("Error playing sound: $e");
+    }
+
+    // 2. تشغيل الاهتزاز بنمط متكرر
+    if (await Vibration.hasVibrator() ?? false) {
+      Vibration.vibrate(pattern: [500, 1000, 500, 1000], repeat: 0);
+    }
+
+    // 3. إظهار نافذة طلب الرحلة في وسط الشاشة
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false, // يجب على السائق الاستجابة
+      builder: (context) {
+        String acceptUrl = "https://driver.zoonasd.com/accept-ride.html?rideId=$rideId&requestId=$requestId";
+
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          contentPadding: EdgeInsets.zero,
+          content: Container(
+            width: double.maxFinite,
+            height: 500, // ارتفاع مناسب لنافذة الطلب
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: InAppWebView(
+                initialUrlRequest: URLRequest(url: WebUri(acceptUrl)),
+                initialSettings: sharedSettings,
+                onWebViewCreated: (controller) {
+                  // إضافة معالج لإغلاق النافذة من داخل الويب
+                  controller.addJavaScriptHandler(handlerName: 'closeRideDialog', callback: (args) {
+                    Navigator.of(context).pop();
+                  });
+                },
+                onCloseWindow: (controller) {
+                  Navigator.of(context).pop();
+                },
+              ),
+            ),
+          ),
+        );
+      },
+    ).then((_) {
+      // عند إغلاق النافذة (سواء بالقبول أو الرفض أو الإلغاء)
+      audioPlayer.stop();
+      Vibration.cancel();
     });
   }
 
