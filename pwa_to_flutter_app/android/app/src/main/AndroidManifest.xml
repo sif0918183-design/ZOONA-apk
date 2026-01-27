@@ -1,49 +1,187 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     package="com.pichillilorenzo.pwa_to_flutter_app">
 
+    <!-- ============ الأذونات المطلوبة ============ -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     
+    <!-- مهم جداً للإشعارات منبثقة كاملة -->
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- للأصوات -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    
+    <!-- لتشغيل التطبيق عند قفل الشاشة -->
+    <uses-permission android:name="android.permission.DISABLE_KEYGUARD" />
+    
+    <!-- للموقع (اختياري) -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
 
-    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-
+    <!-- ============ إعدادات التطبيق ============ -->
     <application
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
-        android:label="Tirhal Driver"
-        android:usesCleartextTraffic="true"> <activity
+        android:label="ترحال زونا"
+        android:usesCleartextTraffic="true"
+        android:requestLegacyExternalStorage="true"
+        android:allowBackup="true"
+        android:fullBackupContent="@xml/backup_rules"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        tools:targetApi="34">
+        
+        <!-- ============ ONE SIGNAL CONFIGURATION ============ -->
+        
+        <!-- App ID for OneSignal -->
+        <meta-data
+            android:name="com.onesignal.messaging.default_notification_channel_id"
+            android:value="5aa08429-7147-4953-80e7-af2e23b115b2" />
+        
+        <!-- Notification Channel ID that matches the one in your API -->
+        <meta-data
+            android:name="com.onesignal.NotificationServiceExtension"
+            android:value="com.pichillilorenzo.pwa_to_flutter_app.NotificationServiceExtension" />
+        
+        <!-- Notification Channel Name -->
+        <meta-data
+            android:name="com.onesignal.NotificationAccentColor.DEFAULT"
+            android:value="FF4F46E5" />
+        
+        <!-- Enable OneSignal notifications -->
+        <meta-data
+            android:name="com.onesignal.NotificationOpened.DEFAULT"
+            android:value="DISABLE" />
+        
+        <!-- LED Color for notifications -->
+        <meta-data
+            android:name="com.onesignal.NotificationLedColor.DEFAULT"
+            android:value="FF4F46E5" />
+        
+        <!-- Sound for notifications -->
+        <meta-data
+            android:name="com.onesignal.NotificationSound.DEFAULT"
+            android:value="ride_request_sound" />
+        
+        <!-- Large Icon -->
+        <meta-data
+            android:name="com.onesignal.NotificationLargeIcon.DEFAULT"
+            android:resource="@mipmap/ic_launcher" />
+        
+        <!-- Small Icon -->
+        <meta-data
+            android:name="com.onesignal.NotificationSmallIcon.DEFAULT"
+            android:resource="@drawable/ic_stat_onesignal_default" />
+        
+        <!-- ============ SERVICES AND RECEIVERS ============ -->
+        
+        <!-- OneSignal Boot Up Receiver -->
+        <receiver
+            android:name="com.onesignal.BootUpReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />
+            </intent-filter>
+        </receiver>
+        
+        <!-- OneSignal Notification Restore Service -->
+        <service
+            android:name="com.onesignal.NotificationRestoreService"
+            android:exported="false" />
+        
+        <!-- OneSignal Notification Extender Service -->
+        <service
+            android:name="com.onesignal.NotificationExtender"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE">
+            <intent-filter>
+                <action android:name="com.onesignal.NotificationExtender" />
+            </intent-filter>
+        </service>
+        
+        <!-- OneSignal FCM Message Service -->
+        <service
+            android:name="com.onesignal.FCMIntentService"
+            android:exported="false">
+            <intent-filter android:priority="999">
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+        
+        <!-- ============ MAIN ACTIVITY ============ -->
+        <activity
             android:name=".MainActivity"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:exported="true"
             android:hardwareAccelerated="true"
             android:launchMode="singleTop"
             android:theme="@style/LaunchTheme"
-            
             android:showWhenLocked="true"
             android:turnScreenOn="true"
             android:directBootAware="true"
+            android:windowSoftInputMode="adjustResize"
+            android:screenOrientation="portrait">
             
-            android:windowSoftInputMode="adjustResize">
-            
+            <!-- Launch Theme -->
             <meta-data
                 android:name="io.flutter.embedding.android.NormalTheme"
                 android:resource="@style/NormalTheme" />
             
+            <!-- Intent Filter for Launcher -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            
+            <!-- Intent Filter for OneSignal Notifications -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:host="driver.zoonasd.com"
+                    android:scheme="https" />
+                <data
+                    android:host="driver.zoonasd.com"
+                    android:scheme="http" />
+            </intent-filter>
+            
+            <!-- Deep Link for Accept Ride -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:host="driver.zoonasd.com"
+                    android:pathPattern="/accept-ride.html.*"
+                    android:scheme="https" />
+            </intent-filter>
+            
         </activity>
-
-        <meta-data android:name="com.onesignal.NotificationOpened.DEFAULT" android:value="true" />
         
+        <!-- ============ NOTIFICATION SERVICE EXTENSION ============ -->
+        <!-- Create this class if needed -->
+        <service
+            android:name=".NotificationServiceExtension"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE">
+            <intent-filter>
+                <action android:name="com.onesignal.NotificationServiceExtension" />
+            </intent-filter>
+        </service>
+        
+        <!-- ============ FLUTTER EMBEDDING ============ -->
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+            
     </application>
 </manifest>
