@@ -28,6 +28,6 @@ dev_dependencies:
 flutter:
   uses-material-design: true
 
-  # تعريف ملف الصوت1 المحلي
+  # تعريف ملف الصوت المحلي
   assets:
     - assets/ride_request_sound.wav

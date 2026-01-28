@@ -52,6 +52,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   // 2. إدارة التفاعل مع الإشعارات + الصوت + الاهتزاز
   void setupOneSignalListeners() {
+    // تأكد من وجود قناة الإشعارات المناسبة للأندرويد (اختياري، OneSignal غالباً ما يتعامل مع هذا)
+
     // الاستماع للإشعارات عند النقر عليها (في الخلفية)
     OneSignal.Notifications.addClickListener((event) {
       _handleRideNotification(event.notification);
@@ -95,7 +97,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       context: context,
       barrierDismissible: false, // يجب على السائق الاستجابة
       builder: (context) {
-        String acceptUrl = "https://driver.zoonasd.com/accept-ride.html?rideId=$rideId&requestId=$requestId";
+        // استخدام الرابط المباشر من الإشعار إذا وجد، وإلا بناء الرابط الافتراضي
+        String acceptUrl = data['accept_url']?.toString() ??
+            "https://driver.zoonasd.com/accept-ride.html?rideId=$rideId&requestId=$requestId";
 
         return AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -193,14 +197,45 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                     initialSettings: webViewInitialSettings,
                     onWebViewCreated: (controller) {
                       webViewController = controller;
+
+                      // إضافة معالج لربط معرف السائق يدوياً من الويب
+                      controller.addJavaScriptHandler(handlerName: 'linkDriverId', callback: (args) {
+                        if (args.isNotEmpty && args[0] != null) {
+                          String driverId = args[0].toString();
+                          OneSignal.login(driverId);
+                          debugPrint("OneSignal: Device linked to Driver ID via JS Handler: $driverId");
+                        }
+                      });
                     },
                     onLoadStop: (controller, url) async {
+                      // 1. محاولة الربط عبر URL
                       if (url != null && url.queryParameters.containsKey('driver_id')) {
                         String? driverId = url.queryParameters['driver_id'];
                         if (driverId != null && driverId.isNotEmpty) {
                           OneSignal.login(driverId);
-                          debugPrint("OneSignal: Device linked to Driver ID: $driverId");
+                          debugPrint("OneSignal: Device linked to Driver ID from URL: $driverId");
                         }
+                      }
+
+                      // 2. محاولة الربط عبر localStorage (للتأكد من ربط الحساب حتى لو لم يكن المعرف في الرابط)
+                      try {
+                        String jsCode = """
+                          (function() {
+                            var driverData = localStorage.getItem('tarhal_driver');
+                            if (driverData) {
+                              var driver = JSON.parse(driverData);
+                              return driver.id ? driver.id.toString() : null;
+                            }
+                            return null;
+                          })();
+                        """;
+                        var result = await controller.evaluateJavascript(source: jsCode);
+                        if (result != null && result is String && result.isNotEmpty) {
+                          OneSignal.login(result);
+                          debugPrint("OneSignal: Device linked to Driver ID from localStorage: $result");
+                        }
+                      } catch (e) {
+                        debugPrint("Error reading driver ID from localStorage: $e");
                       }
                     },
                     shouldOverrideUrlLoading: (controller, navigationAction) async {
