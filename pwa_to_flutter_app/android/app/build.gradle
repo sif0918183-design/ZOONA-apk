@@ -1,6 +1,6 @@
 plugins {
     id "com.android.application"
-    id "org.jetbrains.kotlin.android"
+    id "kotlin-android"
     id "dev.flutter.flutter-gradle-plugin"
 }
 
@@ -20,35 +20,30 @@ android {
 
     defaultConfig {
         applicationId "com.pichillilorenzo.pwa_to_flutter_app"
-        minSdkVersion 21
+        minSdkVersion flutter.minSdkVersion
         targetSdkVersion flutter.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode flutter.versionCode
+        versionName flutter.versionName
 
         manifestPlaceholders += [
-            applicationName: 'android.app.Application',
-            onesignal_app_id: 'e542557c-fbed-4ca6-96fa-0b37e0d21490',
-            onesignal_google_project_number: 'REMOTE'
+            applicationName: "android.app.Application",
+            onesignal_app_id: "e542557c-fbed-4ca6-96fa-0b37e0d21490",
+            onesignal_google_project_number: "REMOTE"
         ]
-
-        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
         release {
             signingConfig signingConfigs.debug
-            minifyEnabled false
-            shrinkResources false
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
 }
 
 flutter {
-    source '../..'
+    source "../.."
 }
 
 dependencies {
-    implementation 'com.google.android.material:material:1.11.0'
-    implementation 'androidx.multidex:multidex:2.0.1'
+    implementation "com.google.android.material:material:1.11.0"
+    implementation "androidx.multidex:multidex:2.0.1"
 }

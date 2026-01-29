@@ -21,13 +21,13 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
     <application
-        android:name="${applicationName}"
+        android:name="android.app.Application"
         android:icon="@mipmap/ic_launcher"
         android:label="ترحال زونا - السائق"
         android:allowBackup="true"
         android:theme="@style/LaunchTheme"
         android:usesCleartextTraffic="true"
-        tools:replace="android:theme,android:allowBackup">
+        tools:replace="android:theme,android:allowBackup,android:name">
 
         <activity
             android:name=".MainActivity"
@@ -59,27 +59,6 @@
         <!-- OneSignal إعدادات -->
         <meta-data android:name="com.onesignal.messaging.default_notification_channel_id"
                    android:value="5aa08429-7147-4953-80e7-af2e23b115b2" />
-
-        <meta-data android:name="com.onesignal.NotificationServiceExtension"
-                   android:value="com.onesignal.NotificationExtensionService" />
-
-        <service android:name="com.onesignal.NotificationExtensionService"
-                 android:exported="false" />
-
-        <service android:name="com.onesignal.NotificationRestoreService"
-                 android:exported="false" />
-
-        <receiver android:name="com.onesignal.BootUpReceiver"
-                  android:exported="false">
-            <intent-filter>
-                <action android:name="android.intent.action.BOOT_COMPLETED" />
-                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
-            </intent-filter>
-        </receiver>
-
-        <service android:name="com.onesignal.NotificationRestoreJobService"
-                 android:permission="android.permission.BIND_JOB_SERVICE"
-                 android:exported="false" />
         
         <!-- Flutter إعدادات -->
         <meta-data android:name="flutterEmbedding" android:value="2" />
