@@ -1,98 +1,49 @@
-<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.pichillilorenzo.pwa_to_flutter_app">
 
-    <!-- أذونات التطبيق -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-    
-    <!-- أذونات الموقع للخرائط -->
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
 
     <application
-        android:name="${applicationName}"
+        android:name="io.flutter.app.FlutterApplication"
         android:icon="@mipmap/ic_launcher"
-        android:label="ترحال زونا - السائق"
-        android:usesCleartextTraffic="true">
-        
-        <!-- النشاط الرئيسي -->
-        <activity
+        android:label="Tirhal Driver"
+        android:usesCleartextTraffic="true"> <activity
             android:name=".MainActivity"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:exported="true"
             android:hardwareAccelerated="true"
             android:launchMode="singleTop"
             android:theme="@style/LaunchTheme"
+
             android:showWhenLocked="true"
             android:turnScreenOn="true"
             android:directBootAware="true"
+
             android:windowSoftInputMode="adjustResize">
             
             <meta-data
                 android:name="io.flutter.embedding.android.NormalTheme"
                 android:resource="@style/NormalTheme" />
             
-            <!-- النقر على أيقونة التطبيق -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            
-            <!-- معالجة نقر الإشعارات -->
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="tarhal" android:host="driver" />
-            </intent-filter>
         </activity>
 
-        <!-- إعدادات OneSignal الأساسية -->
-        <meta-data android:name="com.onesignal.messaging.default_notification_channel_id" 
-                   android:value="5aa08429-7147-4953-80e7-af2e23b115b2" />
+        <meta-data android:name="com.onesignal.NotificationOpened.DEFAULT" android:value="true" />
         
-        <!-- قناة الإشعارات المخصصة للرحلات -->
-        <meta-data android:name="com.onesignal.NotificationServiceExtension" 
-                   android:value="com.onesignal.NotificationExtensionService" />
-        
-        <!-- خدمة تمديد الإشعارات -->
-        <service android:name="com.onesignal.NotificationExtensionService" 
-                 android:exported="false" />
-        
-        <!-- خدمة استعادة الإشعارات -->
-        <service android:name="com.onesignal.NotificationRestoreService" 
-                 android:exported="false" />
-        
-        <!-- مستقبل إعادة التشغيل -->
-        <receiver android:name="com.onesignal.BootUpReceiver" 
-                  android:exported="false">
-            <intent-filter>
-                <action android:name="android.intent.action.BOOT_COMPLETED" />
-                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
-            </intent-filter>
-        </receiver>
-        
-        <!-- خدمة مهام الاستعادة -->
-        <service android:name="com.onesignal.NotificationRestoreJobService"
-                 android:permission="android.permission.BIND_JOB_SERVICE"
-                 android:exported="false" />
-        
-        <!-- إعدادات WebView الآمن -->
-        <meta-data android:name="android.webkit.WebView.EnableSafeBrowsing"
-                   android:value="true" />
-
-        <!-- الإعدادات الافتراضية -->
-        <meta-data android:name="com.onesignal.NotificationOpened.DEFAULT" 
-                   android:value="true" />
-        
-        <!-- إعدادات Flutter -->
-        <meta-data android:name="flutterEmbedding" android:value="2" />
+        <meta-data
+            android:name="flutterEmbedding"
+            android:value="2" />
     </application>
 </manifest>

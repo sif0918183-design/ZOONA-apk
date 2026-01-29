@@ -26,6 +26,7 @@ apply plugin: 'kotlin-android'
 apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
 
 android {
+    // تحديث الإصدار إلى 34 ليتوافق مع OneSignal
     compileSdkVersion 34
     ndkVersion flutter.ndkVersion
 
@@ -40,46 +41,30 @@ android {
 
     defaultConfig {
         applicationId "com.pichillilorenzo.pwa_to_flutter_app"
+
+        // تحديثSdkVersion لضمان عمل الـ WebView وأندرويد 14
         minSdkVersion 21
         targetSdkVersion 34
+
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
 
-        // إعدادات OneSignal الأساسية
-        manifestPlaceholders = [
-            onesignal_app_id: 'e542557c-fbed-4ca6-96fa-0b37e0d21490',
-            onesignal_google_project_number: 'REMOTE'
-        ]
-        
+        // لدعم الإشعارات المنبثقة فوق الشاشة
         multiDexEnabled true
     }
 
     buildTypes {
-        debug {
-            signingConfig signingConfigs.debug
-        }
         release {
+            // ملاحظة: ستحتاج لاحقاً لإضافة signingConfig خاص بمتجر جوجل
             signingConfig signingConfigs.debug
-            minifyEnabled true
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
+    }
+
+    dependencies {
+        implementation 'com.google.android.material:material:1.6.0'
     }
 }
 
 flutter {
     source '../..'
-}
-
-dependencies {
-    implementation 'com.google.android.material:material:1.6.0'
-    
-    // OneSignal للإشعارات
-    implementation 'com.onesignal:OneSignal:[4.8.5, 4.99.99]'
-    
-    // MultiDex للأجهزة القديمة
-    implementation 'androidx.multidex:multidex:2.0.1'
-    
-    // مكتبات أساسية
-    implementation 'androidx.core:core:1.9.0'
-    implementation 'androidx.media:media:1.6.0'
 }
