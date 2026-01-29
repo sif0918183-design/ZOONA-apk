@@ -7,7 +7,7 @@ plugins {
 android {
     namespace "com.pichillilorenzo.pwa_to_flutter_app"
     compileSdkVersion 34
-    ndkVersion "25.1.8937393"
+    ndkVersion "26.1.10909125"
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
