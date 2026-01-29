@@ -39,7 +39,8 @@ android {
     defaultConfig {
         applicationId "com.pichillilorenzo.pwa_to_flutter_app"
         minSdkVersion flutter.minSdkVersion
-        targetSdkVersion 34
+        targetSdkVersion 33
+        multiDexEnabled true
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
 
