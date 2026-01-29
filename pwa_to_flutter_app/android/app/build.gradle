@@ -18,12 +18,30 @@ android {
         jvmTarget = '1.8'
     }
 
+    def localProperties = new Properties()
+    def localPropertiesFile = new File(rootProject.projectDir, "local.properties")
+    if (localPropertiesFile.exists()) {
+        localPropertiesFile.withReader('UTF-8') { reader ->
+            localProperties.load(reader)
+        }
+    }
+
+    def flutterVersionCode = localProperties.getProperty('flutter.versionCode')
+    if (flutterVersionCode == null) {
+        flutterVersionCode = '1'
+    }
+
+    def flutterVersionName = localProperties.getProperty('flutter.versionName')
+    if (flutterVersionName == null) {
+        flutterVersionName = '1.0'
+    }
+
     defaultConfig {
         applicationId "com.pichillilorenzo.pwa_to_flutter_app"
         minSdkVersion flutter.minSdkVersion
         targetSdkVersion flutter.targetSdkVersion
-        versionCode flutter.versionCode
-        versionName flutter.versionName
+        versionCode flutterVersionCode.toInteger()
+        versionName flutterVersionName
 
         manifestPlaceholders += [
             applicationName: "android.app.Application",
