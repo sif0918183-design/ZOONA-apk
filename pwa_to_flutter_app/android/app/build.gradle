@@ -25,8 +25,13 @@ apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
 apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
 
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file('key.properties')
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
 android {
-    // تحديث الإصدار إلى 34 ليتوافق مع OneSignal
     compileSdkVersion 34
     ndkVersion flutter.ndkVersion
 
@@ -39,32 +44,58 @@ android {
         jvmTarget = '1.8'
     }
 
+    sourceSets {
+        main.java.srcDirs += 'src/main/kotlin'
+    }
+
     defaultConfig {
         applicationId "com.pichillilorenzo.pwa_to_flutter_app"
-
-        // تحديثSdkVersion لضمان عمل الـ WebView وأندرويد 14
         minSdkVersion 21
         targetSdkVersion 34
-
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
-
-        // لدعم الإشعارات المنبثقة فوق الشاشة
+        
+        // ⭐⭐ هذه هي القيم الصحيحة ⭐⭐
+        manifestPlaceholders = [
+            applicationName: "android.app.Application",
+            onesignal_app_id: 'e542557c-fbed-4ca6-96fa-0b37e0d21490',
+            onesignal_google_project_number: 'REMOTE'
+        ]
+        
         multiDexEnabled true
     }
 
-    buildTypes {
+    signingConfigs {
         release {
-            // ملاحظة: ستحتاج لاحقاً لإضافة signingConfig خاص بمتجر جوجل
-            signingConfig signingConfigs.debug
+            keyAlias keystoreProperties['keyAlias'] ?: System.getenv('KEY_ALIAS')
+            keyPassword keystoreProperties['keyPassword'] ?: System.getenv('KEY_PASSWORD')
+            storeFile keystoreProperties['storeFile'] ? file(keystoreProperties['storeFile']) : file(System.getenv('STORE_FILE'))
+            storePassword keystoreProperties['storePassword'] ?: System.getenv('STORE_PASSWORD')
         }
     }
 
-    dependencies {
-        implementation 'com.google.android.material:material:1.6.0'
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+        }
+        release {
+            signingConfig signingConfigs.release
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
     }
 }
 
 flutter {
     source '../..'
+}
+
+dependencies {
+    implementation 'com.google.android.material:material:1.9.0'
+    implementation 'com.onesignal:OneSignal:[4.8.5, 4.99.99]'
+    implementation 'androidx.multidex:multidex:2.0.1'
+    implementation 'androidx.core:core:1.10.1'
+    implementation 'androidx.media:media:1.6.0'
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
 }
