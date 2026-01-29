@@ -20,7 +20,7 @@ android {
 
     defaultConfig {
         applicationId "com.pichillilorenzo.pwa_to_flutter_app"
-        minSdkVersion flutter.minSdkVersion
+        minSdkVersion 21
         targetSdkVersion flutter.targetSdkVersion
         versionCode 1
         versionName "1.0"
@@ -40,17 +40,7 @@ android {
             minifyEnabled false
             shrinkResources false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            debuggable false
         }
-        debug {
-            signingConfig signingConfigs.debug
-            debuggable true
-        }
-    }
-
-    lintOptions {
-        checkReleaseBuilds false
-        abortOnError false
     }
 }
 
@@ -61,10 +51,4 @@ flutter {
 dependencies {
     implementation 'com.google.android.material:material:1.11.0'
     implementation 'androidx.multidex:multidex:2.0.1'
-    implementation 'androidx.core:core-ktx:1.12.0'
-    implementation 'androidx.media:media:1.6.0'
-
-    testImplementation 'junit:junit:4.13.2'
-    androidTestImplementation 'androidx.test.ext:junit:1.1.5'
-    androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
 }
