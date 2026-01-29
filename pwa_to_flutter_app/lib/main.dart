@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
@@ -7,38 +6,50 @@ import 'package:onesignal_flutter/onesignal_flutter.dart';
 import 'package:audioplayers/audioplayers.dart'; // مكتبة الصوت
 import 'package:vibration/vibration.dart';      // مكتبة الاهتزاز
 
-import 'webview_popup.dart';
-import 'util.dart'; 
-
-Future main() async {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // 1. إعداد OneSignal
-  OneSignal.Debug.setLogLevel(OSLogLevel.verbose);
+  // تهيئة OneSignal
   OneSignal.initialize("e542557c-fbed-4ca6-96fa-0b37e0d21490");
   
   // طلب إذن الإشعارات
   OneSignal.Notifications.requestPermission(true);
 
-  if (!kIsWeb && kDebugMode && defaultTargetPlatform == TargetPlatform.android) {
+  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
     await InAppWebViewController.setWebContentsDebuggingEnabled(kDebugMode);
   }
   
-  runApp(const MaterialApp(
-    debugShowCheckedModeBanner: false,
-    home: MyApp(),
-  ));
+  runApp(const MyApp());
 }
 
-class MyApp extends StatefulWidget {
-  const MyApp({Key? key}) : super(key: key);
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
   @override
-  State<MyApp> createState() => _MyAppState();
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'ترحال زونا - السائق',
+      theme: ThemeData(
+        primarySwatch: Colors.blue,
+        useMaterial3: false,
+      ),
+      home: const MainScreen(),
+    );
+  }
 }
 
-class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
+class MainScreen extends StatefulWidget {
+  const MainScreen({super.key});
+
+  @override
+  State<MainScreen> createState() => _MainScreenState();
+}
+
+class _MainScreenState extends State<MainScreen> {
   final GlobalKey webViewKey = GlobalKey();
   InAppWebViewController? webViewController;
+  bool _isLoading = true;
   
   // تعريف مشغل الصوت كمتغير دائم
   final AudioPlayer audioPlayer = AudioPlayer();
@@ -46,28 +57,29 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    setupOneSignalListeners();
+    _setupOneSignal();
   }
 
-  // 2. إدارة التفاعل مع الإشعارات + الصوت + الاهتزاز
-  void setupOneSignalListeners() {
-    // تأكد من وجود قناة الإشعارات المناسبة للأندرويد (اختياري، OneSignal غالباً ما يتعامل مع هذا)
+  @override
+  void dispose() {
+    audioPlayer.dispose();
+    super.dispose();
+  }
 
-    // الاستماع للإشعارات عند النقر عليها (في الخلفية)
-    OneSignal.Notifications.addClickListener((event) {
-      _handleRideNotification(event.notification);
-    });
-
-    // الاستماع للإشعارات أثناء فتح التطبيق (في المقدمة)
+  void _setupOneSignal() {
+    // مستمع الإشعارات في المقدمة
     OneSignal.Notifications.addForegroundWillDisplayListener((event) {
-      // منع ظهور الإشعار الافتراضي واستخدام نافذتنا الخاصة بدلاً منه
+      // منع ظهور الإشعار الافتراضي واستخدام نافذتنا الخاصة
       event.preventDefault();
       _handleRideNotification(event.notification);
     });
+
+    // مستمع نقر الإشعارات
+    OneSignal.Notifications.addClickListener((event) {
+      _handleRideNotification(event.notification);
+    });
   }
 
-  // معالج موحد لطلبات الرحلة
   void _handleRideNotification(OSNotification notification) async {
     final data = notification.additionalData;
     if (data == null) return;
@@ -106,12 +118,16 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           contentPadding: EdgeInsets.zero,
           content: Container(
             width: double.maxFinite,
-            height: 500, // ارتفاع مناسب لنافذة الطلب
+            height: 500,
             child: ClipRRect(
               borderRadius: BorderRadius.circular(20),
               child: InAppWebView(
                 initialUrlRequest: URLRequest(url: WebUri(acceptUrl)),
-                initialSettings: sharedSettings,
+                initialSettings: InAppWebViewSettings(
+                  javaScriptEnabled: true,
+                  mediaPlaybackRequiresUserGesture: false,
+                  supportMultipleWindows: false,
+                ),
                 onWebViewCreated: (controller) {
                   // إضافة معالج لإغلاق النافذة من داخل الويب
                   controller.addJavaScriptHandler(handlerName: 'closeRideDialog', callback: (args) {
@@ -133,68 +149,57 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     });
   }
 
-  InAppWebViewSettings sharedSettings = InAppWebViewSettings(
-      supportMultipleWindows: true,
-      javaScriptCanOpenWindowsAutomatically: true,
-      applicationNameForUserAgent: 'Tirhal Driver App',
-      userAgent: 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Mobile Safari/537.36',
-      disableDefaultErrorPage: true,
-      allowsInlineMediaPlayback: true, 
-      mediaPlaybackRequiresUserGesture: false, // تسمح بتشغيل الوسائط تلقائياً بعد تفاعل المستخدم مع التطبيق
-      limitsNavigationsToAppBoundDomains: true);
-
-  @override
-  void dispose() {
-    webViewController = null;
-    audioPlayer.dispose(); // إغلاق مشغل الصوت عند إغلاق التطبيق
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (!kIsWeb && webViewController != null && defaultTargetPlatform == TargetPlatform.android) {
-      if (state == AppLifecycleState.paused) {
-        webViewController?.pause();
-        webViewController?.pauseTimers();
-      } else if (state == AppLifecycleState.resumed) {
-        webViewController?.resume();
-        webViewController?.resumeTimers();
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    // استخدمنا PopScope بدلاً من WillPopScope لأنها الأحدث في إصدارات Flutter الجديدة
-    return PopScope(
-      canPop: false,
-      onPopInvoked: (didPop) async {
-        if (didPop) return;
-        final controller = webViewController;
-        if (controller != null && await controller.canGoBack()) {
-          controller.goBack();
-        }
-      },
-      child: Scaffold(
-          appBar: AppBar(toolbarHeight: 0, backgroundColor: Colors.black),
-          body: Column(children: <Widget>[
-            Expanded(
-              child: FutureBuilder<bool>(
-                future: isNetworkAvailable(),
-                builder: (context, snapshot) {
-                  if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-                  
-                  final bool networkAvailable = snapshot.data ?? false;
-                  final webViewInitialSettings = sharedSettings.copy();
-                  webViewInitialSettings.cacheMode = networkAvailable 
-                      ? CacheMode.LOAD_DEFAULT 
-                      : CacheMode.LOAD_CACHE_ELSE_NETWORK;
+    return Scaffold(
+      body: Stack(
+        children: [
+          SafeArea(
+            child: Column(
+              children: [
+                // شريط العنوان المخصص
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  color: const Color(0xFF4f46e5),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.directions_car, color: Colors.white),
+                      const SizedBox(width: 10),
+                      const Text(
+                        'ترحال زونا - السائق',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const Spacer(),
+                      if (_isLoading)
+                        const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
 
-                  return InAppWebView(
+                // WebView الرئيسي
+                Expanded(
+                  child: InAppWebView(
                     key: webViewKey,
-                    initialUrlRequest: URLRequest(url: WebUri("https://driver.zoonasd.com/")),
-                    initialSettings: webViewInitialSettings,
+                    initialUrlRequest: URLRequest(
+                      url: WebUri("https://driver.zoonasd.com/"),
+                    ),
+                    initialSettings: InAppWebViewSettings(
+                      javaScriptEnabled: true,
+                      mediaPlaybackRequiresUserGesture: false,
+                      supportMultipleWindows: true,
+                      applicationNameForUserAgent: 'Tirhal Driver App',
+                    ),
                     onWebViewCreated: (controller) {
                       webViewController = controller;
 
@@ -208,6 +213,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                       });
                     },
                     onLoadStop: (controller, url) async {
+                      setState(() => _isLoading = false);
+
                       // 1. محاولة الربط عبر URL
                       if (url != null && url.queryParameters.containsKey('driver_id')) {
                         String? driverId = url.queryParameters['driver_id'];
@@ -217,7 +224,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                         }
                       }
 
-                      // 2. محاولة الربط عبر localStorage (للتأكد من ربط الحساب حتى لو لم يكن المعرف في الرابط)
+                      // 2. محاولة الربط عبر localStorage
                       try {
                         String jsCode = """
                           (function() {
@@ -240,31 +247,28 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                     },
                     shouldOverrideUrlLoading: (controller, navigationAction) async {
                       final uri = navigationAction.request.url;
-                      if (uri != null && navigationAction.isForMainFrame && 
-                          uri.host != "driver.zoonasd.com" && await canLaunchUrl(uri)) {
+                      if (uri == null) return NavigationActionPolicy.ALLOW;
+
+                      if (uri.host == "driver.zoonasd.com") {
+                        return NavigationActionPolicy.ALLOW;
+                      }
+
+                      if (await canLaunchUrl(uri)) {
                         launchUrl(uri, mode: LaunchMode.externalApplication);
                         return NavigationActionPolicy.CANCEL;
                       }
+
                       return NavigationActionPolicy.ALLOW;
                     },
-                    onCreateWindow: (controller, createWindowAction) async {
-                      showDialog(
-                        context: context,
-                        builder: (context) {
-                          final popupWebViewSettings = sharedSettings.copy();
-                          popupWebViewSettings.supportMultipleWindows = false;
-                          return WebViewPopup(
-                              createWindowAction: createWindowAction,
-                              popupWebViewSettings: popupWebViewSettings);
-                        },
-                      );
-                      return true;
-                    },
-                  );
-                },
-              ),
+                  ),
+                ),
+              ],
             ),
-          ])),
+          ),
+          if (_isLoading)
+            const Center(child: CircularProgressIndicator()),
+        ],
+      ),
     );
   }
 }
