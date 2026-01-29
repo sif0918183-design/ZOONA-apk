@@ -18,31 +18,17 @@ android {
         jvmTarget = '1.8'
     }
 
-    def localProperties = new Properties()
-    def localPropertiesFile = new File(rootProject.projectDir, "local.properties")
-    if (localPropertiesFile.exists()) {
-        localPropertiesFile.withReader('UTF-8') { reader ->
-            localProperties.load(reader)
-        }
-    }
-
-    def flutterVersionCode = localProperties.getProperty('flutter.versionCode')
-    if (flutterVersionCode == null) {
-        flutterVersionCode = '1'
-    }
-
-    def flutterVersionName = localProperties.getProperty('flutter.versionName')
-    if (flutterVersionName == null) {
-        flutterVersionName = '1.0'
-    }
-
     defaultConfig {
         applicationId "com.pichillilorenzo.pwa_to_flutter_app"
+
+        // ✅ الحل الحقيقي لمشكلة vibration
         minSdkVersion 21
         targetSdkVersion 33
+
         multiDexEnabled true
-        versionCode flutterVersionCode.toInteger()
-        versionName flutterVersionName
+
+        versionCode 1
+        versionName "1.0"
 
         manifestPlaceholders += [
             applicationName: "android.app.Application",
@@ -54,6 +40,8 @@ android {
     buildTypes {
         release {
             signingConfig signingConfigs.debug
+            minifyEnabled false
+            shrinkResources false
         }
     }
 }
