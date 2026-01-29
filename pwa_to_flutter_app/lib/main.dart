@@ -13,11 +13,11 @@ import 'util.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // --- 1. تهيئة OneSignal مع App ID الخاص بالسائق ---
-  OneSignal.shared.setAppId("c05c5d16-4e72-4d4a-b1a2-6e7e06232d98");
+  // --- تهيئة OneSignal للإصدار 5.x ---
+  OneSignal.onesignal.setAppId("c05c5d16-4e72-4d4a-b1a2-6e7e06232d98");
 
-  // طلب إذن الإشعارات (Android عادة يقبل تلقائياً)
-  OneSignal.shared.promptUserForPushNotificationPermission();
+  // طلب إذن الإشعارات (Android يقبل تلقائياً)
+  await OneSignal.onesignal.promptUserForPushNotificationPermission();
 
   if (!kIsWeb && kDebugMode && defaultTargetPlatform == TargetPlatform.android) {
     await InAppWebViewController.setWebContentsDebuggingEnabled(kDebugMode);
@@ -49,11 +49,13 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   }
 
   void setupOneSignalListeners() {
-    OneSignal.shared.setNotificationWillShowInForegroundHandler((event) {
+    // عرض الإشعار في الواجهة الأمامية
+    OneSignal.onesignal.setNotificationWillShowInForegroundHandler((event) {
       event.complete(event.notification);
     });
 
-    OneSignal.shared.setNotificationOpenedHandler((openedResult) async {
+    // عند فتح الإشعار
+    OneSignal.onesignal.setNotificationOpenedHandler((openedResult) async {
       // --- تشغيل الصوت ---
       try {
         await audioPlayer.play(AssetSource('ride_request_sound.wav'));
@@ -148,7 +150,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                       if (url != null && url.queryParameters.containsKey('driver_id')) {
                         String? driverId = url.queryParameters['driver_id'];
                         if (driverId != null && driverId.isNotEmpty) {
-                          OneSignal.shared.setExternalUserId(driverId);
+                          OneSignal.onesignal.setExternalUserId(driverId);
                           debugPrint("OneSignal: Device linked to Driver ID: $driverId");
                         }
                       }
