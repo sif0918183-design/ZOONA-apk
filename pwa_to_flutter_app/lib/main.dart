@@ -24,6 +24,9 @@ Future<void> main() async {
 }
 
 Future<void> initializeOneSignal() async {
+  // تفعيل سجلات التصحيح لرؤية عملية الربط في الـ Console
+  OneSignal.shared.setLogLevel(OSLogLevel.verbose, OSLogLevel.none);
+  
   await OneSignal.shared.setAppId(
     "c05c5d16-4e72-4d4a-b1a2-6e7e06232d98",
   );
@@ -46,7 +49,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   bool _isLoading = true;
   String _currentUrl = '';
-  late ConnectivityResult _connectivityStatus;
 
   @override
   void initState() {
@@ -57,13 +59,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   Future<void> _initApp() async {
     await _setupOneSignalListeners();
-
-    _connectivityStatus = await Connectivity().checkConnectivity();
-    Connectivity().onConnectivityChanged.listen((result) {
-      setState(() {
-        _connectivityStatus = result;
-      });
-    });
 
     pullToRefreshController = PullToRefreshController(
       settings: PullToRefreshSettings(color: Colors.blue),
@@ -78,54 +73,44 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   }
 
   Future<void> _setupOneSignalListeners() async {
-    // وصول الإشعار
-    OneSignal.shared
-        .setNotificationWillShowInForegroundHandler((event) async {
+    // معالج استقبال الإشعار والتطبيق مفتوح
+    OneSignal.shared.setNotificationWillShowInForegroundHandler((event) async {
       await _playNotificationSound();
       await _vibrateDevice();
       event.complete(event.notification);
     });
 
-    // الضغط على الإشعار
-    OneSignal.shared
-        .setNotificationOpenedHandler((openedResult) async {
-      await _playNotificationSound();
-      await _vibrateDevice();
-
-      final data =
-          openedResult.notification.additionalData ?? {};
-
+    // معالج الضغط على الإشعار
+    OneSignal.shared.setNotificationOpenedHandler((openedResult) async {
+      final data = openedResult.notification.additionalData ?? {};
       final rideId = data['rideId']?.toString() ?? '';
       final requestId = data['requestId']?.toString() ?? '';
 
       if (rideId.isNotEmpty && requestId.isNotEmpty) {
-        final url =
-            "https://driver.zoonasd.com/accept-ride.html?rideId=$rideId&requestId=$requestId";
+        final url = "https://driver.zoonasd.com/accept-ride.html?rideId=$rideId&requestId=$requestId";
         _loadRideUrl(url);
       }
     });
   }
 
   Future<void> _playNotificationSound() async {
-    await audioPlayer.stop();
-    await audioPlayer.play(
-      AssetSource('ride_request_sound.wav'),
-    );
+    try {
+      await audioPlayer.stop();
+      await audioPlayer.play(AssetSource('ride_request_sound.wav'));
+    } catch (e) {
+      print("Error playing sound: $e");
+    }
   }
 
   Future<void> _vibrateDevice() async {
     if (await Vibration.hasVibrator() ?? false) {
-      await Vibration.vibrate(
-        pattern: [500, 250, 500],
-      );
+      await Vibration.vibrate(pattern: [500, 250, 500]);
     }
   }
 
   void _loadRideUrl(String url) {
     if (webViewController != null) {
-      webViewController!.loadUrl(
-        urlRequest: URLRequest(url: WebUri(url)),
-      );
+      webViewController!.loadUrl(urlRequest: URLRequest(url: WebUri(url)));
     } else {
       _currentUrl = url;
     }
@@ -136,13 +121,16 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'ترحال زونا - السائق',
+      theme: ThemeData(primarySwatch: Colors.blue),
       home: Scaffold(
-        body: Stack(
-          children: [
-            _buildWebView(),
-            if (_isLoading)
-              const Center(child: CircularProgressIndicator()),
-          ],
+        body: SafeArea(
+          child: Stack(
+            children: [
+              _buildWebView(),
+              if (_isLoading)
+                const Center(child: CircularProgressIndicator()),
+            ],
+          ),
         ),
       ),
     );
@@ -152,16 +140,13 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     return InAppWebView(
       key: webViewKey,
       initialUrlRequest: URLRequest(
-        url: WebUri(
-          _currentUrl.isNotEmpty
-              ? _currentUrl
-              : "https://driver.zoonasd.com/",
-        ),
+        url: WebUri(_currentUrl.isNotEmpty ? _currentUrl : "https://driver.zoonasd.com/"),
       ),
       initialSettings: InAppWebViewSettings(
         javaScriptEnabled: true,
         useHybridComposition: true,
-        domStorageEnabled: true,
+        domStorageEnabled: true, // ضروري لقراءة localStorage
+        supportZoom: false,
       ),
       pullToRefreshController: pullToRefreshController,
       onWebViewCreated: (controller) {
@@ -172,34 +157,44 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       },
       onLoadStop: (controller, url) async {
         setState(() => _isLoading = false);
+        pullToRefreshController?.endRefreshing();
 
-        if (url != null &&
-            url.queryParameters.containsKey('driver_id')) {
-          final driverId = url.queryParameters['driver_id'];
-          if (driverId != null) {
-            await OneSignal.shared
-                .setExternalUserId(driverId);
-
-            final prefs =
-                await SharedPreferences.getInstance();
-            await prefs.setString('driver_id', driverId);
-          }
-        }
-      },
-      shouldOverrideUrlLoading:
-          (controller, navigationAction) async {
-        final uri = navigationAction.request.url;
-        if (uri == null) return NavigationActionPolicy.ALLOW;
-
-        if (uri.host != "driver.zoonasd.com") {
-          await launchUrl(
-            uri,
-            mode: LaunchMode.externalApplication,
-          );
-          return NavigationActionPolicy.CANCEL;
-        }
-        return NavigationActionPolicy.ALLOW;
+        // --- الخطوة الجوهرية: الربط مع OneSignal ---
+        await _syncUserIdWithOneSignal(controller, url);
       },
     );
+  }
+
+  /// وظيفة لمزامنة معرف السائق بين الموقع و OneSignal
+  Future<void> _syncUserIdWithOneSignal(InAppWebViewController controller, WebUri? url) async {
+    try {
+      String? driverId;
+
+      // 1. المحاولة الأولى: القراءة من localStorage (كما اقترحت أنت)
+      final String? storageId = await controller.evaluateJavascript(
+          source: "localStorage.getItem('driver_id');"
+      );
+      
+      if (storageId != null && storageId != "null" && storageId.isNotEmpty) {
+        driverId = storageId.replaceAll('"', ''); // تنظيف القيمة من علامات الاقتباس
+      } 
+      // 2. المحاولة الثانية: القراءة من الرابط (URL) كاحتياطي
+      else if (url != null && url.queryParameters.containsKey('driver_id')) {
+        driverId = url.queryParameters['driver_id'];
+      }
+
+      // 3. إذا وجدنا المعرف، نقوم بعملية الربط
+      if (driverId != null && driverId.isNotEmpty) {
+        await OneSignal.shared.setExternalUserId(driverId);
+        
+        // حفظه محلياً في ذاكرة الهاتف للتأكد
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('synced_driver_id', driverId);
+        
+        print("✅ Success: Linked OneSignal to Driver ID: $driverId");
+      }
+    } catch (e) {
+      print("❌ Error during OneSignal sync: $e");
+    }
   }
 }
