@@ -2,9 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:onesignal_flutter/onesignal_flutter.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:vibration/vibration.dart';
@@ -57,6 +55,26 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _initApp();
+
+    // محاولة استعادة driver_id من SharedPreferences
+    _restoreDriverId();
+  }
+
+  Future<void> _restoreDriverId() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedDriverId = prefs.getString('synced_driver_id');
+
+    if (savedDriverId != null && savedDriverId.isNotEmpty) {
+      print("🔄 [Restore] Found saved driver_id: $savedDriverId");
+
+      // محاولة الربط مع OneSignal مباشرة
+      try {
+        await OneSignal.shared.setExternalUserId(savedDriverId);
+        print("✅ [Restore] Linked from cache successfully");
+      } catch (e) {
+        print("⚠️ [Restore Error] Failed to link: $e");
+      }
+    }
   }
 
   @override
@@ -82,15 +100,27 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   }
 
   Future<void> _setupOneSignalListeners() async {
-    // معالج وصول الإشعار والتطبيق مفتوح
+    // تفعيل السجلات
+    OneSignal.shared.setLogLevel(OSLogLevel.verbose, OSLogLevel.none);
+
+    // التأكد من تهيئة OneSignal
+    await OneSignal.shared.setAppId("c05c5d16-4e72-4d4a-b1a2-6e7e06232d98");
+
+    // إضافة معالج للإشعارات
     OneSignal.shared.setNotificationWillShowInForegroundHandler((event) async {
+      print("📱 Notification received in foreground: ${event.notification}");
+
+      // تشغيل الصوت والاهتزاز
       await _playNotificationSound();
       await _vibrateDevice();
+
       event.complete(event.notification);
     });
 
-    // معالج الضغط على الإشعار
+    // معالج فتح الإشعار
     OneSignal.shared.setNotificationOpenedHandler((openedResult) async {
+      print("📱 Notification opened: ${openedResult.notification}");
+
       final data = openedResult.notification.additionalData ?? {};
       final rideId = data['rideId']?.toString() ?? '';
       final requestId = data['requestId']?.toString() ?? '';
@@ -100,6 +130,10 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         _loadRideUrl(url);
       }
     });
+
+    // الحصول على playerId وتخزينه
+    final playerId = await OneSignal.shared.getDeviceState();
+    print("📱 OneSignal Player ID: ${playerId?.userId}");
   }
 
   Future<void> _playNotificationSound() async {
@@ -112,7 +146,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   }
 
   Future<void> _vibrateDevice() async {
-    if (await Vibration.hasVibrator() ?? false) {
+    // Note: vibration 3.1.5 returns Future<bool>, but using == true for extra safety
+    if (await Vibration.hasVibrator() == true) {
       await Vibration.vibrate(pattern: [500, 250, 500]);
     }
   }
@@ -169,44 +204,111 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         setState(() => _isLoading = false);
         pullToRefreshController?.endRefreshing();
 
-        // بدء مراقبة الـ localStorage بمجرد انتهاء تحميل الصفحة
+        // بدء المراقبة بعد التأكد من تحميل الصفحة
+        await Future.delayed(const Duration(seconds: 2));
         _startAuthPolling(controller);
+
+        // حقن JavaScript للتعاون مع PWA
+        await controller.evaluateJavascript(
+          source: """
+            // تعريف دالة للاتصال من PWA إلى Flutter
+            window.driverLinkedToFlutter = function(driverId) {
+              console.log('🎯 Flutter received driverId:', driverId);
+              // يمكنك إضافة منطق إضافي هنا
+            };
+
+            // مراقبة تغييرات localStorage
+            window.addEventListener('storage', function(e) {
+              if (e.key === 'driver_id' || e.key === 'tarhal_driver_id') {
+                console.log('📱 localStorage changed:', e.key, e.newValue);
+              }
+            });
+          """
+        );
       },
     );
   }
 
   /// وظيفة المراقبة الدورية للـ localStorage
   void _startAuthPolling(InAppWebViewController controller) {
-    _authPollingTimer?.cancel(); // التأكد من عدم وجود مؤقتات مكررة
+    _authPollingTimer?.cancel();
     
-    _authPollingTimer = Timer.periodic(const Duration(seconds: 2), (timer) async {
+    _authPollingTimer = Timer.periodic(const Duration(seconds: 3), (timer) async {
       try {
-        // قراءة قيمة driver_id من متصفح الـ WebView
+        // طريقة أفضل لقراءة localStorage
         final dynamic result = await controller.evaluateJavascript(
-            source: "localStorage.getItem('driver_id');"
+          source: """
+            (function() {
+              try {
+                // المحاولة من مصادر متعددة
+                let driverId = localStorage.getItem('driver_id') ||
+                              localStorage.getItem('tarhal_driver_id') ||
+                              new URLSearchParams(window.location.search).get('driver_id');
+
+                // التحقق من صحة المعرف
+                if (driverId && driverId.length > 5 && driverId !== "null") {
+                  // تنظيف القيمة
+                  driverId = driverId.toString().replace(/["']/g, '').trim();
+                  return driverId;
+                }
+                return null;
+              } catch(e) {
+                return null;
+              }
+            })()
+          """
         );
 
-        if (result != null && result != "null" && result.toString().isNotEmpty) {
-          String driverId = result.toString().replaceAll('"', ''); // تنظيف القيمة من الاقتباسات
+        if (result != null && result.toString().isNotEmpty && result != "null") {
+          String driverId = result.toString();
           
-          // ربط المعرف بـ OneSignal
-          await OneSignal.shared.setExternalUserId(driverId);
+          print("🎯 [Sync] Found driver_id: $driverId");
           
-          print("🎯 [Sync Success] Driver ID $driverId found in LocalStorage and linked to OneSignal.");
+          // ربط مع OneSignal
+          try {
+            await OneSignal.shared.setExternalUserId(driverId);
+            print("✅ [Sync] Linked to OneSignal successfully");
 
-          // حفظ المعرف في Shared Preferences كنسخة احتياطية دائمة في الهاتف
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setString('synced_driver_id', driverId);
+            // حفظ في SharedPreferences
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setString('synced_driver_id', driverId);
 
-          // إيقاف المراقبة لأننا وجدنا المعرف ونجح الربط
-          timer.cancel();
+            // إرسال تأكيد للتطبيق PWA
+            await controller.evaluateJavascript(
+              source: """
+                if (typeof window.driverLinkedToFlutter === 'function') {
+                  window.driverLinkedToFlutter('$driverId');
+                }
+              """
+            );
+
+            // إيقاف المؤقت بعد النجاح
+            timer.cancel();
+
+            // إشعار للمستخدم
+            _showLinkedNotification(controller);
+
+          } catch (e) {
+            print("⚠️ [Sync Error] OneSignal linking failed: $e");
+          }
         } else {
-          // لم يجد المعرف بعد (ربما السائق لم يسجل دخوله بعد)
-          if (kDebugMode) print("⏳ [Sync Waiting] driver_id not found yet in localStorage...");
+          print("⏳ [Sync] Waiting for driver_id...");
         }
       } catch (e) {
-        if (kDebugMode) print("⚠️ [Sync Error] Error polling localStorage: $e");
+        print("⚠️ [Sync Error] Polling error: $e");
       }
     });
+  }
+
+  void _showLinkedNotification(InAppWebViewController controller) {
+    controller.evaluateJavascript(
+      source: """
+        if (typeof showNotification === 'function') {
+          showNotification('✅ تم ربط حسابك بنظام الإشعارات بنجاح!', 'success');
+        } else {
+          alert('✅ تم ربط حسابك بنظام الإشعارات بنجاح!');
+        }
+      """
+    );
   }
 }
