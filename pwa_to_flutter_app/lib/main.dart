@@ -8,7 +8,6 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:onesignal_flutter/onesignal_flutter.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:vibration/vibration.dart';
-import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 Future<void> main() async {
@@ -24,7 +23,7 @@ Future<void> main() async {
 }
 
 Future<void> initializeOneSignal() async {
-  // تفعيل سجلات التصحيح لرؤية عملية الربط في الـ Console
+  // تفعيل السجلات لتتبع عملية الربط في الـ Console
   OneSignal.shared.setLogLevel(OSLogLevel.verbose, OSLogLevel.none);
   
   await OneSignal.shared.setAppId(
@@ -46,6 +45,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   InAppWebViewController? webViewController;
   final AudioPlayer audioPlayer = AudioPlayer();
   PullToRefreshController? pullToRefreshController;
+  
+  // مؤقت لمراقبة تسجيل الدخول في localStorage
+  Timer? _authPollingTimer;
 
   bool _isLoading = true;
   String _currentUrl = '';
@@ -55,6 +57,13 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _initApp();
+  }
+
+  @override
+  void dispose() {
+    _authPollingTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
   }
 
   Future<void> _initApp() async {
@@ -73,7 +82,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   }
 
   Future<void> _setupOneSignalListeners() async {
-    // معالج استقبال الإشعار والتطبيق مفتوح
+    // معالج وصول الإشعار والتطبيق مفتوح
     OneSignal.shared.setNotificationWillShowInForegroundHandler((event) async {
       await _playNotificationSound();
       await _vibrateDevice();
@@ -121,14 +130,14 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'ترحال زونا - السائق',
-      theme: ThemeData(primarySwatch: Colors.blue),
+      theme: ThemeData(primarySwatch: Colors.green),
       home: Scaffold(
         body: SafeArea(
           child: Stack(
             children: [
               _buildWebView(),
               if (_isLoading)
-                const Center(child: CircularProgressIndicator()),
+                const Center(child: CircularProgressIndicator(color: Colors.green)),
             ],
           ),
         ),
@@ -145,7 +154,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       initialSettings: InAppWebViewSettings(
         javaScriptEnabled: true,
         useHybridComposition: true,
-        domStorageEnabled: true, // ضروري لقراءة localStorage
+        domStorageEnabled: true, // تفعيل الوصول لـ localStorage
         supportZoom: false,
       ),
       pullToRefreshController: pullToRefreshController,
@@ -154,47 +163,50 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       },
       onLoadStart: (_, __) {
         setState(() => _isLoading = true);
+        _authPollingTimer?.cancel(); // إيقاف المؤقت القديم عند بدء تحميل صفحة جديدة
       },
       onLoadStop: (controller, url) async {
         setState(() => _isLoading = false);
         pullToRefreshController?.endRefreshing();
 
-        // --- الخطوة الجوهرية: الربط مع OneSignal ---
-        await _syncUserIdWithOneSignal(controller, url);
+        // بدء مراقبة الـ localStorage بمجرد انتهاء تحميل الصفحة
+        _startAuthPolling(controller);
       },
     );
   }
 
-  /// وظيفة لمزامنة معرف السائق بين الموقع و OneSignal
-  Future<void> _syncUserIdWithOneSignal(InAppWebViewController controller, WebUri? url) async {
-    try {
-      String? driverId;
+  /// وظيفة المراقبة الدورية للـ localStorage
+  void _startAuthPolling(InAppWebViewController controller) {
+    _authPollingTimer?.cancel(); // التأكد من عدم وجود مؤقتات مكررة
+    
+    _authPollingTimer = Timer.periodic(const Duration(seconds: 2), (timer) async {
+      try {
+        // قراءة قيمة driver_id من متصفح الـ WebView
+        final dynamic result = await controller.evaluateJavascript(
+            source: "localStorage.getItem('driver_id');"
+        );
 
-      // 1. المحاولة الأولى: القراءة من localStorage (كما اقترحت أنت)
-      final String? storageId = await controller.evaluateJavascript(
-          source: "localStorage.getItem('driver_id');"
-      );
-      
-      if (storageId != null && storageId != "null" && storageId.isNotEmpty) {
-        driverId = storageId.replaceAll('"', ''); // تنظيف القيمة من علامات الاقتباس
-      } 
-      // 2. المحاولة الثانية: القراءة من الرابط (URL) كاحتياطي
-      else if (url != null && url.queryParameters.containsKey('driver_id')) {
-        driverId = url.queryParameters['driver_id'];
-      }
+        if (result != null && result != "null" && result.toString().isNotEmpty) {
+          String driverId = result.toString().replaceAll('"', ''); // تنظيف القيمة من الاقتباسات
+          
+          // ربط المعرف بـ OneSignal
+          await OneSignal.shared.setExternalUserId(driverId);
+          
+          print("🎯 [Sync Success] Driver ID $driverId found in LocalStorage and linked to OneSignal.");
 
-      // 3. إذا وجدنا المعرف، نقوم بعملية الربط
-      if (driverId != null && driverId.isNotEmpty) {
-        await OneSignal.shared.setExternalUserId(driverId);
-        
-        // حفظه محلياً في ذاكرة الهاتف للتأكد
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('synced_driver_id', driverId);
-        
-        print("✅ Success: Linked OneSignal to Driver ID: $driverId");
+          // حفظ المعرف في Shared Preferences كنسخة احتياطية دائمة في الهاتف
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('synced_driver_id', driverId);
+
+          // إيقاف المراقبة لأننا وجدنا المعرف ونجح الربط
+          timer.cancel();
+        } else {
+          // لم يجد المعرف بعد (ربما السائق لم يسجل دخوله بعد)
+          if (kDebugMode) print("⏳ [Sync Waiting] driver_id not found yet in localStorage...");
+        }
+      } catch (e) {
+        if (kDebugMode) print("⚠️ [Sync Error] Error polling localStorage: $e");
       }
-    } catch (e) {
-      print("❌ Error during OneSignal sync: $e");
-    }
+    });
   }
 }
