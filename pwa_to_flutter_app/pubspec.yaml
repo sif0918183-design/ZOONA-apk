@@ -1,33 +1,98 @@
-name: pwa_to_flutter_app
-description: Tirhal Driver App - PWA to Flutter with OneSignal.
-publish_to: 'none'
-version: 1.0.0+1
+import 'dart:convert';
+import 'dart:io';
 
-environment:
-  sdk: '>=2.18.2 <4.0.0'
+import 'package:flutter/material.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:onesignal_flutter/onesignal_flutter.dart';
+import 'package:http/http.dart' as http;
 
-dependencies:
-  flutter:
-    sdk: flutter
-  
-  # المكتبات الأساسية
-  flutter_inappwebview: ^6.0.0
-  onesignal_flutter: ^3.5.0   # النسخة القديمة المستقرة
-  vibration: ^3.1.5
-  audioplayers: ^5.2.1
-  connectivity_plus: ^5.0.0
-  url_launcher: ^6.2.0
-  shared_preferences: ^2.2.0
-  cupertino_icons: ^1.0.2
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
 
-dev_dependencies:
-  flutter_test:
-    sdk: flutter
-  flutter_lints: ^2.0.0
+  await OneSignal.shared.setAppId(
+    "c05c5d16-4e72-4d4a-b1a2-6e7e06232d98",
+  );
 
-flutter:
-  uses-material-design: true
+  runApp(const MyApp());
+}
 
-  # ملف الصوت المحلي
-  assets:
-    - assets/ride_request_sound.wav
+class MyApp extends StatefulWidget {
+  const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  InAppWebViewController? webViewController;
+  bool isLoading = true;
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: Scaffold(
+        body: Stack(
+          children: [
+            InAppWebView(
+              initialUrlRequest: URLRequest(
+                url: WebUri("https://driver.zoonasd.com/"),
+              ),
+              onWebViewCreated: (controller) {
+                webViewController = controller;
+              },
+              onLoadStop: (controller, url) async {
+                setState(() => isLoading = false);
+
+                await Future.delayed(const Duration(seconds: 2));
+                await syncDriverWithPushToken(controller);
+              },
+            ),
+            if (isLoading)
+              const Center(child: CircularProgressIndicator()),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> syncDriverWithPushToken(
+      InAppWebViewController controller) async {
+    try {
+      // قراءة driver_id من PWA
+      final driverId = await controller.evaluateJavascript(source: """
+        localStorage.getItem('driver_id') ||
+        localStorage.getItem('tarhal_driver_id');
+      """);
+
+      if (driverId == null || driverId.toString().length < 5) {
+        debugPrint("⏳ driver_id not found");
+        return;
+      }
+
+      // جلب push token
+      final deviceState = await OneSignal.shared.getDeviceState();
+      final pushToken = deviceState?.userId;
+
+      if (pushToken == null) {
+        debugPrint("❌ push token not found");
+        return;
+      }
+
+      debugPrint("🚀 Sending token to API");
+
+      await http.post(
+        Uri.parse("https://YOURDOMAIN.com/api/save-token"),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({
+          "driverId": driverId.toString(),
+          "pushToken": pushToken,
+        }),
+      );
+
+      debugPrint("✅ Token synced successfully");
+    } catch (e) {
+      debugPrint("Sync error: $e");
+    }
+  }
+}
