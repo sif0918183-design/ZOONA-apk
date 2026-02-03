@@ -26,7 +26,6 @@ apply plugin: 'kotlin-android'
 apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
 
 android {
-    // تحديث الإصدار إلى 34 ليتوافق مع OneSignal
     compileSdkVersion 34
     ndkVersion flutter.ndkVersion
 
@@ -40,31 +39,33 @@ android {
     }
 
     defaultConfig {
-        applicationId "com.pichillilorenzo.pwa_to_flutter_app"
+        // نصيحة: قم بتغيير الـ Application ID لاحقاً ليكون فريداً بك
+        applicationId "com.zoonasd.tarhal_driver"
         
-        // تحديثSdkVersion لضمان عمل الـ WebView وأندرويد 14
         minSdkVersion 21
         targetSdkVersion 34
         
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
 
-        // لدعم الإشعارات المنبثقة فوق الشاشة
         multiDexEnabled true
     }
 
     buildTypes {
         release {
-            // ملاحظة: ستحتاج لاحقاً لإضافة signingConfig خاص بمتجر جوجل
             signingConfig signingConfigs.debug
         }
     }
+}
 
-    dependencies {
-        implementation 'com.google.android.material:material:1.6.0'
-        // تأكد من إضافة OneSignal إذا لم تكن مضافة تلقائياً
-        implementation 'com.onesignal:OneSignal:[4.0.0, 4.99.99]'
-    }
+dependencies {
+    implementation 'com.google.android.material:material:1.6.0'
+    
+    // إضافة مكتبة MultiDex لضمان عدم حدوث خطأ أثناء التجميع
+    implementation 'androidx.multidex:multidex:2.0.1'
+    
+    // ملاحظة: مكتبة OneSignal يتم جلبها تلقائياً عبر Flutter Plugin 
+    // لذا لا داعي لإضافتها يدوياً هنا لتجنب التعارض (Conflict)
 }
 
 flutter {
