@@ -10,10 +10,13 @@ dependencies:
   flutter:
     sdk: flutter
 
+  # إدارة الحالة وقاعدة البيانات
   flutter_riverpod: ^2.4.9
   supabase_flutter: ^2.1.3
   onesignal_flutter: ^3.6.3
   flutter_inappwebview: ^6.0.0-beta.10
+
+  # الاتصال والأدوات
   http: ^1.1.0
   url_launcher: ^6.1.14
   shared_preferences: ^2.2.2
@@ -21,20 +24,19 @@ dependencies:
   permission_handler: ^11.0.1
   location: ^5.0.0
   dio: ^5.3.3
-  firebase_messaging: ^14.7.5
   package_info_plus: ^5.0.1
   device_info_plus: ^9.0.3
   flutter_native_splash: ^2.3.7
-  app_lifecycle: ^0.2.0
   intl: ^0.19.0
   cached_network_image: ^3.3.0
-  # تم تصحيح الإصدار هنا
-  pull_to_refresh: ^2.0.0 
   lottie: ^2.7.0
   badges: ^3.1.1
   vibration: ^1.9.0
   flutter_local_notifications: ^16.1.0
   workmanager: ^0.5.1
+  
+  # إصلاح مكتبة السحب للتحديث (إصدار متوافق مع Flutter 3)
+  pull_to_refresh_flutter3: ^2.0.2
 
 dev_dependencies:
   flutter_test:
