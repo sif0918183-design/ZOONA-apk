@@ -9,116 +9,48 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  
-  # إدارة حالة التطبيق
   flutter_riverpod: ^2.4.9
-  
-  # Supabase Database
   supabase_flutter: ^2.1.3
-  
-  # OneSignal Push Notifications
   onesignal_flutter: ^3.6.3
-  
-  # WebView متقدم
   flutter_inappwebview: ^6.0.0-beta.10
-  
-  # HTTP Requests
   http: ^1.1.0
-  
-  # URL Launcher لفتح الروابط الخارجية
   url_launcher: ^6.1.14
-  
-  # Shared Preferences للتخزين المحلي
   shared_preferences: ^2.2.2
-  
-  # Connectivity للتحقق من الاتصال بالإنترنت
   connectivity_plus: ^5.0.2
-  
-  # Permission Handler للأذونات
   permission_handler: ^11.0.1
-  
-  # Location للوصول إلى الموقع
   location: ^5.0.0
-  
-  # Dio للطلبات المتقدمة
   dio: ^5.3.3
-  
-  # Firebase Messaging (بديل احتياطي)
   firebase_messaging: ^14.7.5
-  
-  # Package Info للحصول على معلومات التطبيق
   package_info_plus: ^5.0.1
-  
-  # Device Info
   device_info_plus: ^9.0.3
-  
-  # Flutter Native Splash
   flutter_native_splash: ^2.3.7
-  
-  # App Lifecycle
   app_lifecycle: ^0.2.0
-  
-  # Intl للتاريخ والوقت
   intl: ^0.19.0
-  
-  # Cached Network Image
   cached_network_image: ^3.3.0
-  
-  # Pull to Refresh
   pull_to_refresh: ^3.0.2
-  
-  # Lottie للأنيميشن
   lottie: ^2.7.0
-  
-  # Badges للإشعارات
   badges: ^3.1.1
-  
-  # Vibrate للتذبذبات
   vibrate: ^1.4.0
-  
-  # Flutter Local Notifications للإشعارات المحلية
   flutter_local_notifications: ^16.1.0
-  
-  # Workmanager للمهام في الخلفية
   workmanager: ^0.5.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  
   flutter_lints: ^3.0.1
-  
-  # Supabase CLI للتنمية
   supabase: ^1.10.14
-  
-  # Build Runner
   build_runner: ^2.4.7
-  
-  # Flutter Gen لاحق
   flutter_gen_runner: ^5.4.0
-
-flutter_native_splash:
-  color: "#4f46e5"
-  image: assets/images/splash.png
-  android: true
-  ios: true
-  web: true
-  android_12:
-    color: "#4f46e5"
-    image: assets/images/splash.png
-    icon_background_color: "#4f46e5"
 
 flutter:
   uses-material-design: true
-  
-  # الأصول
+
   assets:
     - assets/images/
     - assets/icons/
     - assets/animations/
     - assets/fonts/
   
-  # الخطوط
   fonts:
     - family: Tajawal
       fonts:
@@ -129,35 +61,3 @@ flutter:
           weight: 700
         - asset: assets/fonts/Tajawal-ExtraBold.ttf
           weight: 800
-  
-  # التكوين لحل مشكلة WebView في iOS
-  webview_flutter:
-    ios: true
-  
-  # إعدادات Android
-  android:
-    enable_jetifier: true
-    compileSdkVersion: 34
-    minSdkVersion: 23
-    targetSdkVersion: 34
-    manifestPlaceholders:
-      onesignal_app_id: "c05c5d16-4e72-4d4a-b1a2-6e7e06232d98"
-      onesignal_google_project_number: "REMOTE"
-  
-  # إعدادات iOS
-  ios:
-    deploymentTarget: '12.0'
-    info.plist:
-      NSLocationWhenInUseUsageDescription: "نحتاج إلى موقعك لتحديد أقرب الرحلات لك"
-      NSLocationAlwaysUsageDescription: "نحتاج إلى موقعك لتلقي طلبات الرحلات حتى عندما يكون التطبيق في الخلفية"
-      NSLocationAlwaysAndWhenInUseUsageDescription: "نحتاج إلى موقعك لتلقي طلبات الرحلات"
-      UIBackgroundModes:
-        - location
-        - fetch
-        - remote-notification
-
-  # إعدادات الويب
-  web:
-    title: "ترحال زونا - السائق"
-    favicon: assets/icons/favicon.ico
-    renderer: html
