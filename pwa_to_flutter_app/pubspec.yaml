@@ -10,17 +10,17 @@ dependencies:
   flutter:
     sdk: flutter
 
-  # إدارة الحالة وقاعدة البيانات
-  flutter_riverpod: ^2.4.9
-  supabase_flutter: ^2.1.3
-  
-  # تم تعديل OneSignal للإصدار المستقر والموجود فعلياً
+  # الخطوط والإشعارات
+  google_fonts: ^6.1.0
   onesignal_flutter: ^3.5.1
-  
-  # WebView
-  flutter_inappwebview: ^6.0.0-beta.10
+  flutter_local_notifications: ^16.1.0
 
-  # أدوات الاتصال
+  # إدارة البيانات والويب
+  supabase_flutter: ^2.1.3
+  flutter_inappwebview: ^6.0.0-beta.10
+  flutter_riverpod: ^2.4.9
+
+  # الأدوات المساعدة
   http: ^1.1.0
   url_launcher: ^6.1.14
   shared_preferences: ^2.2.2
@@ -36,10 +36,7 @@ dependencies:
   lottie: ^2.7.0
   badges: ^3.1.1
   vibration: ^1.9.0
-  flutter_local_notifications: ^16.1.0
   workmanager: ^0.5.1
-  
-  # مكتبة السحب للتحديث
   pull_to_refresh_flutter3: ^2.0.2
 
 dev_dependencies:
@@ -51,18 +48,4 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    - assets/images/
-    - assets/icons/
-    - assets/animations/
-    - assets/fonts/
-  
-  fonts:
-    - family: Tajawal
-      fonts:
-        - asset: assets/fonts/Tajawal-Regular.ttf
-        - asset: assets/fonts/Tajawal-Medium.ttf
-          weight: 500
-        - asset: assets/fonts/Tajawal-Bold.ttf
-          weight: 700
-        - asset: assets/fonts/Tajawal-ExtraBold.ttf
-          weight: 800
+    - assets/sounds/ # يجب وجود ملف الصوت هنا أيضاً لضمان نجاح الـ Build
