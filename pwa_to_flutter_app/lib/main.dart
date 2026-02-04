@@ -9,6 +9,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:vibration/vibration.dart';
+import 'package:audioplayers/audioplayers.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -35,12 +38,11 @@ Future<void> main() async {
 }
 
 Future<void> _requestPermissions() async {
-  Map<Permission, PermissionStatus> statuses = await [
+  await [
     Permission.notification,
     Permission.location,
     Permission.locationAlways,
   ].request();
-  debugPrint("Permissions status: $statuses");
 }
 
 class TarhalZoonaDriverApp extends StatelessWidget {
@@ -76,6 +78,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with WidgetsBinding
   late final SupabaseClient _supabase;
   StreamSubscription? _connectivitySubscription;
   Timer? _statusTimer;
+  Timer? _authPollingTimer;
+  final AudioPlayer _audioPlayer = AudioPlayer();
 
   @override
   void initState() {
@@ -85,9 +89,20 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with WidgetsBinding
     
     _setupConnectivity();
     _setupOneSignalHandlers();
+    _restoreDriverId();
     
     // تحديث الحالة كل دقيقتين لضمان بقاء السائق متاحاً
     _statusTimer = Timer.periodic(const Duration(minutes: 2), (_) => _updateOnlineStatus(true));
+  }
+
+  Future<void> _restoreDriverId() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedId = prefs.getString('synced_driver_id');
+    if (savedId != null) {
+      _currentDriverId = savedId;
+      await OneSignal.shared.setExternalUserId(savedId);
+      debugPrint("🔄 Restored and synced driver_id: $savedId");
+    }
   }
 
   void _setupConnectivity() {
@@ -97,21 +112,56 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with WidgetsBinding
   }
 
   void _setupOneSignalHandlers() {
-    OneSignal.shared.setNotificationWillShowInForegroundHandler((event) {
-      _handleIncomingNotification(event.notification.additionalData);
+    // معالج استلام الإشعارات في المقدمة
+    OneSignal.shared.setNotificationWillShowInForegroundHandler((event) async {
+      debugPrint("📱 Notification received in foreground: ${event.notification.body}");
+
+      final data = event.notification.additionalData;
+      if (data != null && data['type'] == 'ride_request') {
+        await _triggerAlert();
+      }
+
+      _handleIncomingNotification(data);
       event.complete(event.notification);
     });
+
+    // معالج فتح الإشعارات
+    OneSignal.shared.setNotificationOpenedHandler((openedResult) async {
+      final data = openedResult.notification.additionalData;
+      debugPrint("📱 Notification opened: $data");
+
+      if (data != null) {
+        final rideId = data['rideId']?.toString() ?? data['ride_id']?.toString() ?? '';
+        final requestId = data['requestId']?.toString() ?? data['request_id']?.toString() ?? '';
+
+        if (rideId.isNotEmpty) {
+          final url = "https://driver.zoonasd.com/accept-ride.html?rideId=$rideId&requestId=$requestId";
+          _webViewController?.loadUrl(urlRequest: URLRequest(url: WebUri(url)));
+        }
+      }
+    });
+  }
+
+  Future<void> _triggerAlert() async {
+    try {
+      await Vibration.vibrate(pattern: [500, 250, 500, 250, 500], intensities: [255, 0, 255, 0, 255]);
+      await _audioPlayer.play(AssetSource('ride_request_sound.wav'));
+    } catch (e) {
+      debugPrint("Error triggering alert: $e");
+    }
   }
 
   Future<void> _handleIncomingNotification(Map<String, dynamic>? data) async {
     if (data != null && _webViewController != null) {
       final jsonStr = jsonEncode(data);
-      await _webViewController!.evaluateJavascript(source: "if(window.handleRideRequest) { window.handleRideRequest($jsonStr); }");
+      await _webViewController!.evaluateJavascript(
+        source: "if(window.handleRideRequest) { window.handleRideRequest($jsonStr); } else { console.log('handleRideRequest not found'); }"
+      );
     }
   }
 
   Future<void> _updateOnlineStatus(bool online) async {
-    if (_currentDriverId != null) {
+    if (_currentDriverId != null && _isOnline) {
       try {
         await _supabase.from('driver_locations').upsert({
           'driver_id': _currentDriverId,
@@ -124,28 +174,74 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with WidgetsBinding
     }
   }
 
-  Future<void> _syncDriverData(InAppWebViewController controller) async {
-    // محاولة جلب ID السائق من الـ Storage الخاص بالويب
-    final result = await controller.evaluateJavascript(source: "localStorage.getItem('driver_id')");
-    if (result != null && result.toString() != "null") {
-      _currentDriverId = result.toString().replaceAll('"', '');
-      
-      // جلب توكن الإشعارات وتخزينه في قاعدة البيانات
-      final deviceState = await OneSignal.shared.getDeviceState();
-      if (deviceState?.userId != null) {
+  void _startAuthPolling(InAppWebViewController controller) {
+    _authPollingTimer?.cancel();
+    _authPollingTimer = Timer.periodic(const Duration(seconds: 3), (timer) async {
+      try {
+        final dynamic result = await controller.evaluateJavascript(
+          source: """
+            (function() {
+              try {
+                let id = localStorage.getItem('driver_id') || localStorage.getItem('tarhal_driver_id');
+                if (id && id.length > 5 && id !== "null") {
+                  return id.toString().replace(/["']/g, '').trim();
+                }
+                return null;
+              } catch(e) { return null; }
+            })()
+          """
+        );
+
+        if (result != null && result.toString() != "null") {
+          final String driverId = result.toString();
+          if (_currentDriverId != driverId) {
+            await _syncDriverWithServices(driverId);
+          }
+        }
+      } catch (e) {
+        debugPrint("Polling error: $e");
+      }
+    });
+  }
+
+  Future<void> _syncDriverWithServices(String driverId) async {
+    _currentDriverId = driverId;
+
+    // 1. المزامنة مع OneSignal
+    await OneSignal.shared.setExternalUserId(driverId);
+
+    // 2. الحفظ محلياً
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('synced_driver_id', driverId);
+
+    // 3. تحديث Supabase بالتوكن
+    final deviceState = await OneSignal.shared.getDeviceState();
+    if (deviceState?.userId != null) {
+      try {
         await _supabase.from('drivers').update({
           'push_token': deviceState!.userId,
           'last_active': DateTime.now().toIso8601String(),
-        }).eq('id', _currentDriverId!);
+        }).eq('id', driverId);
+      } catch (e) {
+        debugPrint("Supabase sync error: $e");
       }
-      _updateOnlineStatus(true);
     }
+
+    _updateOnlineStatus(true);
+    debugPrint("✅ Driver $driverId synced successfully");
+
+    // إخطار الـ WebView بالنجاح
+    await _webViewController?.evaluateJavascript(
+      source: "if(window.showNotification) { window.showNotification('✅ تم ربط نظام الإشعارات بنجاح', 'success'); }"
+    );
   }
 
   @override
   void dispose() {
     _statusTimer?.cancel();
+    _authPollingTimer?.cancel();
     _connectivitySubscription?.cancel();
+    _audioPlayer.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -161,12 +257,21 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with WidgetsBinding
               initialSettings: InAppWebViewSettings(
                 javaScriptEnabled: true,
                 domStorageEnabled: true,
+                databaseEnabled: true,
                 useShouldOverrideUrlLoading: true,
+                mediaPlaybackRequiresUserGesture: false,
+                allowsInlineMediaPlayback: true,
+                safeBrowsingEnabled: true,
+                allowFileAccessFromFileURLs: true,
+                allowUniversalAccessFromFileURLs: true,
               ),
               onWebViewCreated: (controller) => _webViewController = controller,
+              onLoadStart: (controller, url) {
+                setState(() => _isLoading = true);
+              },
               onLoadStop: (controller, url) async {
                 setState(() => _isLoading = false);
-                await _syncDriverData(controller);
+                _startAuthPolling(controller);
               },
               shouldOverrideUrlLoading: (controller, navigationAction) async {
                 var uri = navigationAction.request.url!;
@@ -177,6 +282,9 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with WidgetsBinding
                   }
                 }
                 return NavigationActionPolicy.ALLOW;
+              },
+              onConsoleMessage: (controller, consoleMessage) {
+                debugPrint("🌐 Browser Console: ${consoleMessage.message}");
               },
             ),
             if (_isLoading)

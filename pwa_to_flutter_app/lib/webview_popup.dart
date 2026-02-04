@@ -11,10 +11,9 @@ class WebViewPopup extends StatelessWidget {
   final InAppWebViewSettings popupWebViewSettings;
 
   const WebViewPopup(
-      {Key? key,
+      {super.key,
       required this.createWindowAction,
-      required this.popupWebViewSettings})
-      : super(key: key);
+      required this.popupWebViewSettings});
 
   @override
   Widget build(BuildContext context) {
