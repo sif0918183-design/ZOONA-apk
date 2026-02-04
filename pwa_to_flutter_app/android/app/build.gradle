@@ -49,6 +49,11 @@ android {
         versionName flutterVersionName
 
         multiDexEnabled true
+
+        manifestPlaceholders = [
+            onesignal_app_id: "c05c5d16-4e72-4d4a-b1a2-6e7e06232d98",
+            onesignal_google_project_number: "REMOTE"
+        ]
     }
 
     buildTypes {

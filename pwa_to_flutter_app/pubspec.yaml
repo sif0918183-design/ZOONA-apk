@@ -36,6 +36,7 @@ dependencies:
   lottie: ^2.7.0
   badges: ^3.1.1
   vibration: ^1.9.0
+  audioplayers: ^5.2.1
   workmanager: ^0.5.1
   pull_to_refresh_flutter3: ^2.0.2
 
@@ -48,4 +49,4 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    - assets/sounds/ # يجب وجود ملف الصوت هنا أيضاً لضمان نجاح الـ Build
+    - assets/ride_request_sound.wav
