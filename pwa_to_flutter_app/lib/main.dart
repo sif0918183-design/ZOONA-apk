@@ -12,7 +12,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:vibration/vibration.dart';
-import 'package:location/location.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,11 +23,12 @@ Future<void> main() async {
         'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpzbWx5aXlnamFnbWhuZ2xyaG9hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU5NDc3NjMsImV4cCI6MjA4MTUyMzc2M30.QviVinAng-ILq0umvI5UZCFEvNpP3nI0kW_hSaXxNps',
   );
 
-  // طلب أذونات الموقع والإشعارات
+  // طلب أذونات الموقع والإشعارات من النظام
   await [
     Permission.notification,
     Permission.location,
     Permission.locationAlways,
+    Permission.camera, // أضفت الكاميرا تحسباً لاحتياج الموقع لها
   ].request();
 
   runApp(const DriverApp());
@@ -278,6 +278,13 @@ class _DriverHomeState extends State<DriverHome> {
           javaScriptCanOpenWindowsAutomatically: true,
           supportMultipleWindows: true,
         ),
+        // هذا هو الجزء الذي تمت إضافته وتعديله بناءً على طلبك
+        androidOnPermissionRequest: (controller, origin, resources) async {
+          return PermissionRequestResponse(
+            resources: resources,
+            action: PermissionRequestResponseAction.GRANT,
+          );
+        },
         onWebViewCreated: (controller) {
           web = controller;
         },
