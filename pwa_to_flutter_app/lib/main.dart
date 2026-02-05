@@ -18,7 +18,7 @@ Future<void> main() async {
 
   await Supabase.initialize(
     url: 'https://zsmlyiygjagmhnglrhoa.supabase.co',
-    anonKey: 'YOUR_SUPABASE_ANON_KEY',
+    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpzbWx5aXlnamFnbWhuZ2xyaG9hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU5NDc3NjMsImV4cCI6MjA4MTUyMzc2M30.QviVinAng-ILq0umvI5UZCFEvNpP3nI0kW_hSaXxNps',
   );
 
   await Permission.notification.request();
