@@ -28,4 +28,4 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    - assets/sounds/ride_request_sound.wav
+    - assets/ride_request_sound.wav
