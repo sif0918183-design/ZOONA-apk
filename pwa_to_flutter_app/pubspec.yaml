@@ -9,22 +9,12 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-
-  # Supabase (نفس الإصدار)
   supabase_flutter: ^2.8.4
-
-  # WebView (نفس الإصدار)
   flutter_inappwebview: 6.0.0-beta.10
-
-  # الصوت والاهتزاز (نفس الإصدارات)
   audioplayers: 5.2.1
   audioplayers_web: 4.1.0
   vibration: 1.9.0
-
-  # إشعارات محلية (نفس الإصدار)
   flutter_local_notifications: 17.1.2
-
-  # أدوات مساعدة (نفس الإصدارات)
   shared_preferences: 2.2.2
   permission_handler: 11.0.1
   connectivity_plus: 5.0.2
@@ -37,27 +27,5 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-  
-  # الأصول
   assets:
     - assets/sounds/ride_request_sound.wav
-    # يمكن إضافة ملف صوت احتياطي إذا أردت
-    - assets/sounds/notification.wav
-  
-  # تهيئة Android (إعدادات أساسية)
-  android:
-    compileSdkVersion: 34
-    minSdkVersion: 21
-    targetSdkVersion: 34
-  
-  # تهيئة iOS (إعدادات أساسية)
-  ios:
-    deploymentTarget: '13.0'
-    usesSwiftPackageManager: true
-  
-  # إضافة الخط العربي إذا أردت (اختياري)
-  fonts:
-    - family: Tajawal
-      fonts:
-        - asset: assets/fonts/Tajawal-Regular.ttf
-        - asset: assets/fonts/Tajawal-Bold.ttf
