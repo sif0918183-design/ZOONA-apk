@@ -70,16 +70,11 @@ class _DriverHomeState extends State<DriverHome> {
     super.initState();
     _initNotifications();
     _restoreDriver();
-    _setupJavaScriptHandlers();
   }
 
   Future<void> _initNotifications() async {
     const android = AndroidInitializationSettings('@mipmap/ic_launcher');
     await notifications.initialize(const InitializationSettings(android: android));
-  }
-
-  Future<void> _setupJavaScriptHandlers() async {
-    // سيتم إعداد handlers في webview creation
   }
 
   Future<void> _restoreDriver() async {
@@ -176,10 +171,6 @@ class _DriverHomeState extends State<DriverHome> {
           } catch (e) {
             print('❌ Error processing ride request: $e');
             print('Stack trace: ${e.toString()}');
-            if (data != null) {
-              print('Data type: ${data.runtimeType}');
-              print('Data keys: ${data.keys}');
-            }
           }
         },
       )
@@ -197,7 +188,6 @@ class _DriverHomeState extends State<DriverHome> {
           });
         } else {
           print('✅ Realtime subscribed successfully: $status');
-          print('Channel state: ${channel?.subscriptionState}');
         }
       });
   }
@@ -239,12 +229,9 @@ class _DriverHomeState extends State<DriverHome> {
           return;
         }
 
-        final subscriptionState = channel!.subscriptionState;
-        print('🔍 Realtime subscription state: ${subscriptionState.name}');
-        
         // إذا كانت القناة مغلقة أو بها خطأ، إعادة الاتصال
-        if (subscriptionState.name == 'closed' || subscriptionState.name == 'errored') {
-          print('🔄 Reconnecting Realtime (state: ${subscriptionState.name})...');
+        if (channel!.isJoined != true) {
+          print('🔄 Reconnecting Realtime...');
           channel?.unsubscribe();
           channel = null;
           await Future.delayed(const Duration(seconds: 2));
@@ -252,24 +239,27 @@ class _DriverHomeState extends State<DriverHome> {
         }
         
         // التحقق من أن السائق لا يزال online في قاعدة البيانات
-        final { data: driverLocation, error: locationError } = await supabase
-          .from('driver_locations')
-          .select('is_online, last_seen')
-          .eq('driver_id', driverId!)
-          .single()
-          .timeout(const Duration(seconds: 10));
+        try {
+          final response = await supabase
+            .from('driver_locations')
+            .select('is_online, last_seen')
+            .eq('driver_id', driverId!)
+            .single()
+            .timeout(const Duration(seconds: 10));
           
-        if (locationError != null) {
-          print('⚠️ Error checking driver location: $locationError');
-        } else if (driverLocation != null) {
-          final lastSeen = DateTime.parse(driverLocation['last_seen']);
-          final now = DateTime.now();
-          final difference = now.difference(lastSeen).inSeconds;
-          
-          if (difference > 60) { // أكثر من دقيقة
-            print('⚠️ Driver last seen $difference seconds ago, updating...');
-            await _updateDriverStatusInSupabase(true);
+          if (response != null) {
+            final driverLocation = response;
+            final lastSeen = DateTime.parse(driverLocation['last_seen']);
+            final now = DateTime.now();
+            final difference = now.difference(lastSeen).inSeconds;
+            
+            if (difference > 60) { // أكثر من دقيقة
+              print('⚠️ Driver last seen $difference seconds ago, updating...');
+              await _updateDriverStatusInSupabase(true);
+            }
           }
+        } catch (e) {
+          print('⚠️ Error checking driver location: $e');
         }
       } catch (e) {
         print('❌ Error checking connection: $e');
@@ -290,10 +280,6 @@ class _DriverHomeState extends State<DriverHome> {
       // محاولة تشغيل من الأصل
       await audioPlayer.setSource(AssetSource('ride_request_sound.wav'));
       await audioPlayer.play(AssetSource('ride_request_sound.wav'));
-      
-      // خيار احتياطي: استخدام ملف صوتي بديل
-      // await audioPlayer.setSourceUrl('https://www.soundjay.com/buttons/beep-01a.mp3');
-      // await audioPlayer.resume();
       
       print('✅ Sound played successfully');
 
@@ -596,12 +582,12 @@ class _DriverHomeState extends State<DriverHome> {
             action: PermissionRequestResponseAction.GRANT,
           );
         },
-        onWebViewCreated: (controller) async {
+        onWebViewCreated: (controller) {
           web = controller;
           print('🌐 WebView created');
           
           // إعداد JavaScript handlers
-          await controller.addJavaScriptHandler(
+          controller.addJavaScriptHandler(
             handlerName: 'driverLogin',
             callback: (args) async {
               print('📱 Received driverLogin from PWA: $args');
@@ -616,7 +602,7 @@ class _DriverHomeState extends State<DriverHome> {
             },
           );
           
-          await controller.addJavaScriptHandler(
+          controller.addJavaScriptHandler(
             handlerName: 'rideRequestHandler',
             callback: (args) {
               print('📱 Ride request handler called from PWA: $args');
@@ -624,7 +610,7 @@ class _DriverHomeState extends State<DriverHome> {
             },
           );
           
-          await controller.addJavaScriptHandler(
+          controller.addJavaScriptHandler(
             handlerName: 'testConnection',
             callback: (args) {
               print('📱 Test connection from PWA');
@@ -684,7 +670,7 @@ class _DriverHomeState extends State<DriverHome> {
                         Text('معرف السائق: $driverId'),
                         Text('قناة Realtime: ${channel != null ? "🟢 متصلة" : "🔴 غير متصلة"}'),
                         if (channel != null)
-                          Text('حالة الاشتراك: ${channel!.subscriptionState.name}'),
+                          Text('حالة الاشتراك: ${channel!.isJoined == true ? "🟢 متصل" : "🔴 غير متصل"}'),
                         const SizedBox(height: 10),
                         const Text('آخر تحديث:'),
                         Text(DateTime.now().toString()),
@@ -759,7 +745,7 @@ class _DriverHomeState extends State<DriverHome> {
       
       // التحقق من اتصال Realtime كل 30 ثانية
       if (timer.tick % 10 == 0 && driverId != null) {
-        if (channel == null || channel!.subscriptionState.name == 'closed') {
+        if (channel == null || channel!.isJoined != true) {
           print('🔄 Realtime not connected, attempting to reconnect...');
           _listenForRides();
         }
