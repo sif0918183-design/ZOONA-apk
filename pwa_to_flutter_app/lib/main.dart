@@ -375,9 +375,9 @@ class _DriverHomeState extends State<DriverHome> {
   Future<void> _playNotificationSound({bool loop = false}) async {
     try {
       print('🔊 Playing notification sound (loop: $loop)...');
-
-      await audioPlayer.stop();
       
+      await audioPlayer.stop();
+
       if (loop) {
         await audioPlayer.setReleaseMode(ReleaseMode.loop);
       } else {
@@ -520,10 +520,29 @@ class _DriverHomeState extends State<DriverHome> {
 
   Future<void> _acceptRide(Map<String, dynamic> data) async {
     _stopAlerts();
+
+    final rideId = data['ride_id'] ?? data['rideId'];
+    final requestId = data['request_id'] ?? data['requestId'];
+
+    try {
+      print('📡 Updating ride request status to accepted in DB...');
+      await supabase
+          .from('ride_requests')
+          .update({'status': 'accepted'})
+          .eq('ride_id', rideId)
+          .eq('driver_id', driverId!);
+
+      print('✅ Ride request updated in DB');
+    } catch (e) {
+      print('❌ Error updating ride request in DB: $e');
+    }
+
     if (web != null) {
       final jsonStr = jsonEncode(data);
       print('✅ Accepting ride via JS bridge...');
-      await web!.evaluateJavascript(source: "if(typeof handleRideRequest === 'function') handleRideRequest($jsonStr);");
+      await web!.evaluateJavascript(
+          source:
+              "if(typeof handleRideRequest === 'function') handleRideRequest($jsonStr);");
     }
   }
 
