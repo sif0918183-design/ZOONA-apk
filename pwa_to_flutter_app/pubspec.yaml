@@ -19,6 +19,7 @@ dependencies:
   permission_handler: 11.0.1
   connectivity_plus: 5.0.2
   url_launcher: 6.1.14
+  flutter_foreground_task: ^8.17.0
 
 dev_dependencies:
   flutter_test:
