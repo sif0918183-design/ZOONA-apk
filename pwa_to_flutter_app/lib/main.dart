@@ -788,12 +788,17 @@ class _DriverHomeState extends State<DriverHome> {
           transparentBackground: true,
           clearSessionCache: false,
           cacheEnabled: true,
+          geolocationEnabled: true,
         ),
         androidOnPermissionRequest: (controller, origin, resources) async {
           return PermissionRequestResponse(
             resources: resources,
             action: PermissionRequestResponseAction.GRANT,
           );
+        },
+        onGeolocationPermissionsShowPrompt: (controller, origin) async {
+          return GeolocationPermissionShowPromptResponse(
+              origin: origin, allow: true, retain: true);
         },
         onWebViewCreated: (controller) {
           web = controller;
