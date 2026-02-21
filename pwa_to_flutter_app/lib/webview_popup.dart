@@ -51,6 +51,45 @@ class WebViewPopup extends StatelessWidget {
                       },
                       initialSettings: webViewInitialSettings,
                       windowId: createWindowAction.windowId,
+                      onPermissionRequest: (controller, request) async {
+                        // السماح تلقائياً للموقع الموثوق
+                        if (request.origin.host == 'driver.zoonasd.com') {
+                          return PermissionResponse(
+                            resources: request.resources,
+                            action: PermissionResponseAction.GRANT,
+                          );
+                        }
+
+                        // للمواقع الأخرى، نطلب إذن المستخدم
+                        bool granted = await showDialog<bool>(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                title: const Text('طلب إذن'),
+                                content: Text(
+                                    'يرغب الموقع ${request.origin} في الوصول إلى: ${request.resources.join(", ")}'),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.pop(context, false),
+                                    child: const Text('رفض'),
+                                  ),
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.pop(context, true),
+                                    child: const Text('سماح'),
+                                  ),
+                                ],
+                              ),
+                            ) ??
+                            false;
+
+                        return PermissionResponse(
+                          resources: request.resources,
+                          action: granted
+                              ? PermissionResponseAction.GRANT
+                              : PermissionResponseAction.DENY,
+                        );
+                      },
                       onCloseWindow: (controller) {
                         Navigator.pop(context);
                       },

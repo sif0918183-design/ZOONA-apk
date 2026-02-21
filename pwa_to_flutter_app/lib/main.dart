@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
@@ -13,6 +13,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:vibration/vibration.dart';
+import 'webview_popup.dart';
 
 @pragma('vm:entry-point')
 void startCallback() {
@@ -38,6 +39,10 @@ class MyTaskHandler extends TaskHandler {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  if (kDebugMode && !kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+    await InAppWebViewController.setWebContentsDebuggingEnabled(true);
+  }
 
   // تهيئة Supabase
   await Supabase.initialize(
@@ -782,18 +787,69 @@ class _DriverHomeState extends State<DriverHome> {
         initialSettings: InAppWebViewSettings(
           javaScriptEnabled: true,
           domStorageEnabled: true,
+          databaseEnabled: true,
+          geolocationEnabled: true,
           mediaPlaybackRequiresUserGesture: false,
           javaScriptCanOpenWindowsAutomatically: true,
           supportMultipleWindows: true,
           transparentBackground: true,
           clearSessionCache: false,
           cacheEnabled: true,
+          mixedContentMode: MixedContentMode.MIXED_CONTENT_COMPATIBILITY_MODE,
         ),
-        androidOnPermissionRequest: (controller, origin, resources) async {
-          return PermissionRequestResponse(
-            resources: resources,
-            action: PermissionRequestResponseAction.GRANT,
+        onPermissionRequest: (controller, request) async {
+          // السماح تلقائياً للموقع الموثوق
+          if (request.origin.host == 'driver.zoonasd.com') {
+            return PermissionResponse(
+              resources: request.resources,
+              action: PermissionResponseAction.GRANT,
+            );
+          }
+
+          // للمواقع الأخرى، نطلب إذن المستخدم
+          bool granted = await showDialog<bool>(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('طلب إذن'),
+                  content: Text(
+                      'يرغب الموقع ${request.origin} في الوصول إلى: ${request.resources.join(", ")}'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('رفض'),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text('سماح'),
+                    ),
+                  ],
+                ),
+              ) ??
+              false;
+
+          return PermissionResponse(
+            resources: request.resources,
+            action: granted
+                ? PermissionResponseAction.GRANT
+                : PermissionResponseAction.DENY,
           );
+        },
+        onCreateWindow: (controller, createWindowAction) async {
+          showDialog(
+            context: context,
+            builder: (context) {
+              return WebViewPopup(
+                createWindowAction: createWindowAction,
+                popupWebViewSettings: InAppWebViewSettings(
+                  javaScriptEnabled: true,
+                  domStorageEnabled: true,
+                  databaseEnabled: true,
+                  geolocationEnabled: true,
+                ),
+              );
+            },
+          );
+          return true;
         },
         onWebViewCreated: (controller) {
           web = controller;
