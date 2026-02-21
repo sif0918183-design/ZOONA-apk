@@ -797,6 +797,10 @@ class _DriverHomeState extends State<DriverHome> {
           cacheEnabled: true,
           mixedContentMode: MixedContentMode.MIXED_CONTENT_COMPATIBILITY_MODE,
         ),
+        onGeolocationPermissionsShowPrompt: (controller, origin) async {
+          return GeolocationPermissionShowPromptResponse(
+              origin: origin, allow: true, retain: true);
+        },
         onPermissionRequest: (controller, request) async {
           // السماح تلقائياً للموقع الموثوق
           if (request.origin.host == 'driver.zoonasd.com') {
