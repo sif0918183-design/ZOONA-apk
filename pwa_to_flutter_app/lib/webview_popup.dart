@@ -51,6 +51,11 @@ class WebViewPopup extends StatelessWidget {
                       },
                       initialSettings: webViewInitialSettings,
                       windowId: createWindowAction.windowId,
+                      onGeolocationPermissionsShowPrompt:
+                          (controller, origin) async {
+                        return GeolocationPermissionShowPromptResponse(
+                            origin: origin, allow: true, retain: true);
+                      },
                       onPermissionRequest: (controller, request) async {
                         // السماح تلقائياً للموقع الموثوق
                         if (request.origin.host == 'driver.zoonasd.com') {
