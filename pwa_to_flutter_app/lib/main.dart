@@ -57,6 +57,7 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
         visibility: fln.NotificationVisibility.public,
       ),
     ),
+    payload: jsonEncode(message.data),
   );
 }
 
@@ -164,6 +165,8 @@ class _DriverHomeState extends State<DriverHome> {
   bool _isPageLoaded = false;
   String? driverId;
   String? fcmToken;
+  Map<String, dynamic>? _pendingRideData;
+  String? _pendingUrl;
   RealtimeChannel? channel;
   Timer? statusSyncTimer;
   Timer? connectionCheckTimer;
@@ -207,6 +210,20 @@ class _DriverHomeState extends State<DriverHome> {
       _sendTokenToPWA(newToken);
     });
 
+    // معالجة الضغط على الإشعار عندما يكون التطبيق في الخلفية
+    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+      print('🖱️ Notification opened app!');
+      _handleNotificationClick(message.data);
+    });
+
+    // معالجة الضغط على الإشعار عندما يكون التطبيق مغلقاً تماماً
+    messaging.getInitialMessage().then((RemoteMessage? message) {
+      if (message != null) {
+        print('🚪 App opened from notification (Initial Message)');
+        _handleNotificationClick(message.data);
+      }
+    });
+
     // الاستماع للرسائل في المقدمة
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       print('Got a message whilst in the foreground!');
@@ -218,6 +235,21 @@ class _DriverHomeState extends State<DriverHome> {
 
       _handleFcmMessage(message);
     });
+  }
+
+  void _handleNotificationClick(Map<String, dynamic> data) {
+    print('🔔 Notification clicked with data: $data');
+    final rideId = data['ride_id'] ?? data['rideId'];
+    if (rideId != null) {
+      _pendingRideData = data;
+      final url = "https://driver.zoonasd.com/accept-ride.html?ride_id=$rideId";
+      _pendingUrl = url;
+      print('🚀 Navigating to acceptance page: $url');
+      if (web != null) {
+        web!.loadUrl(urlRequest: URLRequest(url: WebUri(url)));
+        _pendingUrl = null;
+      }
+    }
   }
 
   void _handleFcmMessage(RemoteMessage message) async {
@@ -256,7 +288,19 @@ class _DriverHomeState extends State<DriverHome> {
 
   Future<void> _initNotifications() async {
     const android = fln.AndroidInitializationSettings('@mipmap/ic_launcher');
-    await notifications.initialize(const fln.InitializationSettings(android: android));
+    await notifications.initialize(
+      const fln.InitializationSettings(android: android),
+      onDidReceiveNotificationResponse: (details) {
+        if (details.payload != null) {
+          try {
+            final data = jsonDecode(details.payload!);
+            _handleNotificationClick(Map<String, dynamic>.from(data));
+          } catch (e) {
+            print('❌ Error parsing notification payload: $e');
+          }
+        }
+      },
+    );
 
     // إنشاء قناة 'Ride Requests' بشكل صريح للأندرويد
     const fln.AndroidNotificationChannel channel = fln.AndroidNotificationChannel(
@@ -596,6 +640,7 @@ class _DriverHomeState extends State<DriverHome> {
             sound: 'ride_request_sound.wav',
           ),
         ),
+        payload: jsonEncode(data),
       );
       
       print('📱 High-priority notification shown: $customerName');
@@ -1006,6 +1051,12 @@ class _DriverHomeState extends State<DriverHome> {
         onWebViewCreated: (controller) {
           web = controller;
           print('🌐 WebView created');
+
+          if (_pendingUrl != null) {
+            print('🚀 Loading pending URL after WebView creation: $_pendingUrl');
+            controller.loadUrl(urlRequest: URLRequest(url: WebUri(_pendingUrl!)));
+            _pendingUrl = null;
+          }
           
           // إعداد JavaScript handlers
           controller.addJavaScriptHandler(
@@ -1085,6 +1136,30 @@ class _DriverHomeState extends State<DriverHome> {
           _startDriverSync();
           if (driverId != null) {
             _notifyPWAOfDriver(driverId!);
+          }
+
+          // التحقق مما إذا كانت هذه صفحة قبول الرحلة وكان هناك بيانات معلقة
+          if (url?.toString().contains('accept-ride.html') == true && _pendingRideData != null) {
+            print('🎯 On accept-ride page, waiting 3 seconds to send ride data...');
+            final dataToSend = Map<String, dynamic>.from(_pendingRideData!);
+            _pendingRideData = null; // تفريغ البيانات لتجنب التكرار
+
+            Future.delayed(const Duration(seconds: 3), () async {
+              try {
+                final jsonStr = jsonEncode(dataToSend);
+                print('📤 Calling handleIncomingRide via bridge: $jsonStr');
+                await controller.evaluateJavascript(source: """
+                  if (typeof handleIncomingRide === 'function') {
+                    console.log('🎯 Calling handleIncomingRide from Flutter');
+                    handleIncomingRide($jsonStr);
+                  } else {
+                    console.warn('⚠️ handleIncomingRide function not found on this page');
+                  }
+                """);
+              } catch (e) {
+                print('❌ Error calling handleIncomingRide: $e');
+              }
+            });
           }
 
           // إرسال رسالة تأكيد للPWA
