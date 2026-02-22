@@ -24,6 +24,7 @@ if (flutterVersionName == null) {
 apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
 apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
+apply plugin: 'com.google.gms.google-services'
 
 android {
     compileSdkVersion 34
@@ -40,7 +41,7 @@ android {
 
     defaultConfig {
         // نصيحة: قم بتغيير الـ Application ID لاحقاً ليكون فريداً بك
-        applicationId "com.zoonasd.tarhal_driver"
+        applicationId "com.pichillilorenzo.pwa_to_flutter_app"
         
         minSdkVersion 21
         targetSdkVersion 34
