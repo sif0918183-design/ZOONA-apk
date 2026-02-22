@@ -1075,13 +1075,16 @@ class _DriverHomeState extends State<DriverHome> {
         onLoadStop: (controller, url) async {
           print('✅ Page loaded: ${url?.toString()}');
           _isPageLoaded = true;
+
+          // أضف هذا السطر لضمان الإرسال فور تحميل الصفحة
+          if (fcmToken != null) {
+            print('🚀 Sending stored token after page load: $fcmToken');
+            _sendTokenToPWA(fcmToken!);
+          }
+
           _startDriverSync();
           if (driverId != null) {
             _notifyPWAOfDriver(driverId!);
-          }
-          
-          if (fcmToken != null) {
-            _sendTokenToPWA(fcmToken!);
           }
 
           // إرسال رسالة تأكيد للPWA
