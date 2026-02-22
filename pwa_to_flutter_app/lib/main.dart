@@ -43,9 +43,9 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     body,
     const fln.NotificationDetails(
       android: fln.AndroidNotificationDetails(
-        'ride_requests',
-        'Ride Requests',
-        channelDescription: 'إشعارات طلبات الرحلات الجديدة',
+        'urgent_alerts_v5',
+        'Urgent Alerts',
+        channelDescription: 'إشعارات طلبات الرحلات الجديدة - أولوية قصوى',
         importance: fln.Importance.max,
         priority: fln.Priority.high,
         fullScreenIntent: true,
@@ -238,16 +238,21 @@ class _DriverHomeState extends State<DriverHome> {
   }
 
   void _handleNotificationClick(Map<String, dynamic> data) {
-    print('🔔 Notification clicked with data: $data');
+    print('🔔 Notification clicked - Raw Data: $data');
     final rideId = data['ride_id'] ?? data['rideId'];
     if (rideId != null) {
       _pendingRideData = data;
       final url = "https://driver.zoonasd.com/accept-ride.html?ride_id=$rideId";
-      _pendingUrl = url;
-      print('🚀 Navigating to acceptance page: $url');
+
       if (web != null) {
+        print('🌐 WebView loaded, using loadUrl: $url');
         web!.loadUrl(urlRequest: URLRequest(url: WebUri(url)));
         _pendingUrl = null;
+      } else {
+        print('⏳ WebView not loaded yet, using initialUrl via setState: $url');
+        setState(() {
+          _pendingUrl = url;
+        });
       }
     }
   }
@@ -302,11 +307,11 @@ class _DriverHomeState extends State<DriverHome> {
       },
     );
 
-    // إنشاء قناة 'Ride Requests' بشكل صريح للأندرويد
+    // إنشاء قناة 'Urgent Alerts' بشكل صريح للأندرويد
     const fln.AndroidNotificationChannel channel = fln.AndroidNotificationChannel(
-      'ride_requests', // id
-      'Ride Requests', // name
-      description: 'إشعارات طلبات الرحلات الجديدة',
+      'urgent_alerts_v5', // id
+      'Urgent Alerts', // name
+      description: 'إشعارات طلبات الرحلات الجديدة - أولوية قصوى',
       importance: fln.Importance.max,
       playSound: true,
       enableVibration: true,
@@ -580,7 +585,7 @@ class _DriverHomeState extends State<DriverHome> {
         await audioPlayer.setReleaseMode(ReleaseMode.release);
       }
       
-      await audioPlayer.setSource(AssetSource('ride_request_sound.wav'));
+      await audioPlayer.setSource(AssetSource('ride_request_sound.mp3'));
       await audioPlayer.resume();
       
       print('✅ Sound played successfully');
@@ -619,9 +624,9 @@ class _DriverHomeState extends State<DriverHome> {
         '$customerName - $amount SDG ($distance)',
         const fln.NotificationDetails(
           android: fln.AndroidNotificationDetails(
-            'ride_requests',
-            'Ride Requests',
-            channelDescription: 'إشعارات طلبات الرحلات الجديدة',
+            'urgent_alerts_v5',
+            'Urgent Alerts',
+            channelDescription: 'إشعارات طلبات الرحلات الجديدة - أولوية قصوى',
             importance: fln.Importance.max,
             priority: fln.Priority.high,
             fullScreenIntent: true,
@@ -637,7 +642,7 @@ class _DriverHomeState extends State<DriverHome> {
             presentAlert: true,
             presentBadge: true,
             presentSound: true,
-            sound: 'ride_request_sound.wav',
+            sound: 'ride_request_sound.mp3',
           ),
         ),
         payload: jsonEncode(data),
@@ -975,7 +980,7 @@ class _DriverHomeState extends State<DriverHome> {
       ),
       body: InAppWebView(
         initialUrlRequest:
-            URLRequest(url: WebUri('https://driver.zoonasd.com/')),
+            URLRequest(url: WebUri(_pendingUrl ?? 'https://driver.zoonasd.com/')),
         initialSettings: InAppWebViewSettings(
           javaScriptEnabled: true,
           domStorageEnabled: true,
