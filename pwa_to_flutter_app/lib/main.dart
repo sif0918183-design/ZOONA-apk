@@ -161,6 +161,7 @@ class _DriverHomeState extends State<DriverHome> {
       fln.FlutterLocalNotificationsPlugin();
 
   InAppWebViewController? web;
+  bool _isPageLoaded = false;
   String? driverId;
   String? fcmToken;
   RealtimeChannel? channel;
@@ -195,6 +196,9 @@ class _DriverHomeState extends State<DriverHome> {
     // الحصول على التوكن
     fcmToken = await messaging.getToken();
     print('🔥 FCM Token: $fcmToken');
+    if (fcmToken != null) {
+      _sendTokenToPWA(fcmToken!);
+    }
 
     // الاستماع لتحديثات التوكن
     messaging.onTokenRefresh.listen((newToken) {
@@ -242,9 +246,11 @@ class _DriverHomeState extends State<DriverHome> {
   }
 
   void _sendTokenToPWA(String token) async {
-    if (web != null) {
-      print('📤 Sending FCM Token to PWA...');
-      await web!.evaluateJavascript(source: "if(typeof onTokenReceived === 'function') onTokenReceived('$token');");
+    if (web != null && _isPageLoaded) {
+      print('FCM Token sent to WebView: $token');
+      await web!.evaluateJavascript(
+          source:
+              "if(typeof window.setFCMToken === 'function') window.setFCMToken('$token');");
     }
   }
 
@@ -1011,6 +1017,14 @@ class _DriverHomeState extends State<DriverHome> {
           );
 
           controller.addJavaScriptHandler(
+            handlerName: 'getFcmToken',
+            callback: (args) {
+              print('📱 PWA requested FCM Token via getFcmToken handler');
+              return fcmToken;
+            },
+          );
+
+          controller.addJavaScriptHandler(
             handlerName: 'driverLogin',
             callback: (args) async {
               print('📱 Received driverLogin from PWA: $args');
@@ -1060,6 +1074,7 @@ class _DriverHomeState extends State<DriverHome> {
         },
         onLoadStop: (controller, url) async {
           print('✅ Page loaded: ${url?.toString()}');
+          _isPageLoaded = true;
           _startDriverSync();
           if (driverId != null) {
             _notifyPWAOfDriver(driverId!);
