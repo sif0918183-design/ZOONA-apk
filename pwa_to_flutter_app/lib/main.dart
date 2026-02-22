@@ -4,6 +4,8 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart' as fln;
@@ -14,6 +16,49 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:vibration/vibration.dart';
 import 'webview_popup.dart';
+
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp();
+  print("Handling a background message: ${message.messageId}");
+
+  // إظهار تنبيه محلي عند وصول رسالة في الخلفية
+  final fln.FlutterLocalNotificationsPlugin notifications = fln.FlutterLocalNotificationsPlugin();
+
+  const android = fln.AndroidInitializationSettings('@mipmap/ic_launcher');
+  await notifications.initialize(const fln.InitializationSettings(android: android));
+
+  String title = message.notification?.title ?? "طلب رحلة جديد 🚗";
+  String body = message.notification?.body ?? "لديك طلب رحلة جديد في انتظارك";
+
+  // استخدام البيانات الإضافية إذا وجدت
+  if (message.data.isNotEmpty) {
+    print("Background data: ${message.data}");
+    // يمكن استخراج بيانات الرحلة هنا إذا لزم الأمر
+  }
+
+  await notifications.show(
+    DateTime.now().millisecond,
+    title,
+    body,
+    const fln.NotificationDetails(
+      android: fln.AndroidNotificationDetails(
+        'ride_requests',
+        'Ride Requests',
+        channelDescription: 'إشعارات طلبات الرحلات الجديدة',
+        importance: fln.Importance.max,
+        priority: fln.Priority.high,
+        fullScreenIntent: true,
+        category: fln.AndroidNotificationCategory.call,
+        playSound: true,
+        sound: fln.RawResourceAndroidNotificationSound('ride_request_sound'),
+        colorized: true,
+        color: Color(0xFF16a34a),
+        visibility: fln.NotificationVisibility.public,
+      ),
+    ),
+  );
+}
 
 @pragma('vm:entry-point')
 void startCallback() {
@@ -39,6 +84,10 @@ class MyTaskHandler extends TaskHandler {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // تهيئة Firebase
+  await Firebase.initializeApp();
+  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
   if (kDebugMode && !kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
     await InAppWebViewController.setWebContentsDebuggingEnabled(true);
@@ -113,6 +162,7 @@ class _DriverHomeState extends State<DriverHome> {
 
   InAppWebViewController? web;
   String? driverId;
+  String? fcmToken;
   RealtimeChannel? channel;
   Timer? statusSyncTimer;
   Timer? connectionCheckTimer;
@@ -123,9 +173,79 @@ class _DriverHomeState extends State<DriverHome> {
   void initState() {
     super.initState();
     _initNotifications();
+    _initFirebaseMessaging();
     _restoreDriver();
     _initConnectivity();
     _startCacheManagement();
+  }
+
+  Future<void> _initFirebaseMessaging() async {
+    FirebaseMessaging messaging = FirebaseMessaging.instance;
+
+    // طلب الصلاحيات
+    NotificationSettings settings = await messaging.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+      provisional: false,
+    );
+
+    print('User granted permission: ${settings.authorizationStatus}');
+
+    // الحصول على التوكن
+    fcmToken = await messaging.getToken();
+    print('🔥 FCM Token: $fcmToken');
+
+    // الاستماع لتحديثات التوكن
+    messaging.onTokenRefresh.listen((newToken) {
+      fcmToken = newToken;
+      print('🔥 FCM Token Refreshed: $fcmToken');
+      _sendTokenToPWA(newToken);
+    });
+
+    // الاستماع للرسائل في المقدمة
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      print('Got a message whilst in the foreground!');
+      print('Message data: ${message.data}');
+
+      if (message.notification != null) {
+        print('Message also contained a notification: ${message.notification}');
+      }
+
+      _handleFcmMessage(message);
+    });
+  }
+
+  void _handleFcmMessage(RemoteMessage message) async {
+    Map<String, dynamic> data = Map<String, dynamic>.from(message.data);
+
+    // إذا كانت البيانات فارغة ولكن هناك إشعار، نحاول إظهاره
+    if (data.isEmpty && message.notification != null) {
+      await _showLocalNotification({
+        'customer_name': message.notification!.title,
+        'amount': message.notification!.body,
+      });
+      return;
+    }
+
+    // تشغيل الصوت والاهتزاز
+    await _playNotificationSound(loop: true);
+
+    // إظهار الإشعار المحلي
+    await _showLocalNotification(data);
+
+    // إظهار المودال
+    _showRideRequestModal(data);
+
+    // إرسال للـ PWA
+    await _sendToPWA(data);
+  }
+
+  void _sendTokenToPWA(String token) async {
+    if (web != null) {
+      print('📤 Sending FCM Token to PWA...');
+      await web!.evaluateJavascript(source: "if(typeof onTokenReceived === 'function') onTokenReceived('$token');");
+    }
   }
 
   Future<void> _initNotifications() async {
@@ -883,6 +1003,14 @@ class _DriverHomeState extends State<DriverHome> {
           
           // إعداد JavaScript handlers
           controller.addJavaScriptHandler(
+            handlerName: 'onTokenReceived',
+            callback: (args) {
+              print('📱 PWA requested FCM Token via onTokenReceived handler');
+              return fcmToken;
+            },
+          );
+
+          controller.addJavaScriptHandler(
             handlerName: 'driverLogin',
             callback: (args) async {
               print('📱 Received driverLogin from PWA: $args');
@@ -937,6 +1065,10 @@ class _DriverHomeState extends State<DriverHome> {
             _notifyPWAOfDriver(driverId!);
           }
           
+          if (fcmToken != null) {
+            _sendTokenToPWA(fcmToken!);
+          }
+
           // إرسال رسالة تأكيد للPWA
           await controller.evaluateJavascript(source: """
             console.log('✅ Flutter WebView loaded successfully');
