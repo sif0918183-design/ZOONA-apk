@@ -57,6 +57,7 @@ Future<void> main() async {
     Permission.location,
     Permission.locationAlways,
     Permission.camera, // أضفت الكاميرا تحسباً لاحتياج الموقع لها
+    Permission.ignoreBatteryOptimizations,
   ].request();
 
   _initForegroundTask();
@@ -130,6 +131,21 @@ class _DriverHomeState extends State<DriverHome> {
   Future<void> _initNotifications() async {
     const android = fln.AndroidInitializationSettings('@mipmap/ic_launcher');
     await notifications.initialize(const fln.InitializationSettings(android: android));
+
+    // إنشاء قناة 'Ride Requests' بشكل صريح للأندرويد
+    const fln.AndroidNotificationChannel channel = fln.AndroidNotificationChannel(
+      'ride_requests', // id
+      'Ride Requests', // name
+      description: 'إشعارات طلبات الرحلات الجديدة',
+      importance: fln.Importance.max,
+      playSound: true,
+      enableVibration: true,
+      sound: fln.RawResourceAndroidNotificationSound('ride_request_sound'),
+    );
+
+    await notifications
+        .resolvePlatformSpecificImplementation<fln.AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(channel);
   }
 
   Future<void> _restoreDriver() async {
@@ -165,6 +181,11 @@ class _DriverHomeState extends State<DriverHome> {
     final notificationPermissionStatus = await FlutterForegroundTask.checkNotificationPermission();
     if (notificationPermissionStatus != NotificationPermission.granted) {
       await FlutterForegroundTask.requestNotificationPermission();
+    }
+
+    // طلب تجاوز تحسين البطارية لضمان استمرار العمل في الخلفية
+    if (!await FlutterForegroundTask.isIgnoringBatteryOptimizations) {
+      await FlutterForegroundTask.requestIgnoreBatteryOptimization();
     }
 
     await FlutterForegroundTask.startService(
@@ -428,9 +449,9 @@ class _DriverHomeState extends State<DriverHome> {
         '$customerName - $amount SDG ($distance)',
         const fln.NotificationDetails(
           android: fln.AndroidNotificationDetails(
-            'high_priority_rides',
-            'High Priority Ride Requests',
-            channelDescription: 'إشعارات طلبات الرحلات العاجلة',
+            'ride_requests',
+            'Ride Requests',
+            channelDescription: 'إشعارات طلبات الرحلات الجديدة',
             importance: fln.Importance.max,
             priority: fln.Priority.high,
             fullScreenIntent: true,
@@ -796,6 +817,7 @@ class _DriverHomeState extends State<DriverHome> {
           clearSessionCache: false,
           cacheEnabled: true,
           mixedContentMode: MixedContentMode.MIXED_CONTENT_COMPATIBILITY_MODE,
+          userAgent: "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36",
         ),
         onGeolocationPermissionsShowPrompt: (controller, origin) async {
           return GeolocationPermissionShowPromptResponse(
@@ -880,6 +902,18 @@ class _DriverHomeState extends State<DriverHome> {
             callback: (args) {
               print('📱 Ride request handler called from PWA: $args');
               return {'received': true, 'processedBy': 'flutter'};
+            },
+          );
+
+          controller.addJavaScriptHandler(
+            handlerName: 'showNativeNotification',
+            callback: (args) {
+              print('📱 showNativeNotification called from PWA: $args');
+              if (args.isNotEmpty && args[0] is Map) {
+                _showLocalNotification(Map<String, dynamic>.from(args[0]));
+                return {'success': true};
+              }
+              return {'success': false, 'error': 'Invalid arguments'};
             },
           );
           
