@@ -23,18 +23,39 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   print("Handling a background message: ${message.messageId}");
 
   // إظهار تنبيه محلي عند وصول رسالة في الخلفية
-  final fln.FlutterLocalNotificationsPlugin notifications = fln.FlutterLocalNotificationsPlugin();
+  final fln.FlutterLocalNotificationsPlugin notifications =
+      fln.FlutterLocalNotificationsPlugin();
 
   const android = fln.AndroidInitializationSettings('@mipmap/ic_launcher');
   await notifications.initialize(const fln.InitializationSettings(android: android));
 
+  Map<String, dynamic> data = message.data;
   String title = message.notification?.title ?? "طلب رحلة جديد 🚗";
   String body = message.notification?.body ?? "لديك طلب رحلة جديد في انتظارك";
 
-  // استخدام البيانات الإضافية إذا وجدت
-  if (message.data.isNotEmpty) {
-    print("Background data: ${message.data}");
-    // يمكن استخراج بيانات الرحلة هنا إذا لزم الأمر
+  // محاولة استخراج معلومات أفضل من الـ data إذا كان الـ notification فارغاً
+  if (data.isNotEmpty) {
+    print("Background data: $data");
+    Map<String, dynamic> rideData = data;
+    if (data['payload'] != null) {
+      try {
+        if (data['payload'] is Map) {
+          rideData = Map<String, dynamic>.from(data['payload']);
+        } else if (data['payload'] is String) {
+          rideData = jsonDecode(data['payload']);
+        }
+      } catch (e) {
+        print('⚠️ Error parsing nested payload in background: $e');
+      }
+    }
+
+    if (message.notification == null) {
+      final customerName =
+          rideData['customer_name'] ?? rideData['customerName'] ?? 'عميل';
+      final amount = rideData['amount']?.toString() ?? '---';
+      title = 'طلب رحلة من $customerName 🚗';
+      body = 'المبلغ المتوقع: $amount SDG';
+    }
   }
 
   await notifications.show(
@@ -55,9 +76,12 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
         colorized: true,
         color: Color(0xFF16a34a),
         visibility: fln.NotificationVisibility.public,
+        ticker: 'طلب رحلة جديد',
+        ongoing: true,
+        autoCancel: false,
       ),
     ),
-    payload: jsonEncode(message.data),
+    payload: jsonEncode(data),
   );
 }
 
@@ -239,8 +263,27 @@ class _DriverHomeState extends State<DriverHome> {
 
   void _handleNotificationClick(Map<String, dynamic> data) {
     print('🔔 Notification clicked - Raw Data: $data');
-    final rideId = data['ride_id'] ?? data['rideId'];
+
+    // محاولة استخراج ride_id من مصادر مختلفة في الـ data payload
+    dynamic rideId = data['ride_id'] ?? data['rideId'];
+
+    // إذا لم يوجد مباشرة، قد يكون بداخل حقل payload (سواء كـ Map أو String JSON)
+    if (rideId == null && data['payload'] != null) {
+      try {
+        final payload = data['payload'];
+        if (payload is Map) {
+          rideId = payload['ride_id'] ?? payload['rideId'];
+        } else if (payload is String) {
+          final decodedPayload = jsonDecode(payload);
+          rideId = decodedPayload['ride_id'] ?? decodedPayload['rideId'];
+        }
+      } catch (e) {
+        print('⚠️ Error parsing nested payload: $e');
+      }
+    }
+
     if (rideId != null) {
+      print('🎯 Found Ride ID: $rideId');
       _pendingRideData = data;
       final url = "https://driver.zoonasd.com/accept-ride.html?ride_id=$rideId";
 
@@ -254,6 +297,8 @@ class _DriverHomeState extends State<DriverHome> {
           _pendingUrl = url;
         });
       }
+    } else {
+      print('⚠️ No Ride ID found in notification data');
     }
   }
 
@@ -307,7 +352,23 @@ class _DriverHomeState extends State<DriverHome> {
       },
     );
 
-    // إنشاء قناة 'Urgent Alerts' بشكل صريح للأندرويد
+    // التحقق مما إذا كان التطبيق قد فُتح عبر إشعار محلي (عندما يكون مغلقاً)
+    final notificationAppLaunchDetails =
+        await notifications.getNotificationAppLaunchDetails();
+    if (notificationAppLaunchDetails?.didNotificationLaunchApp ?? false) {
+      final payload = notificationAppLaunchDetails?.notificationResponse?.payload;
+      if (payload != null) {
+        try {
+          print('🚪 App launched from local notification payload');
+          final data = jsonDecode(payload);
+          _handleNotificationClick(Map<String, dynamic>.from(data));
+        } catch (e) {
+          print('❌ Error parsing launch notification payload: $e');
+        }
+      }
+    }
+
+    // إنشاء قناة 'Urgent Alerts' بشكل صريح للأندرويد مع خصائص متقدمة
     const fln.AndroidNotificationChannel channel = fln.AndroidNotificationChannel(
       'urgent_alerts_v5', // id
       'Urgent Alerts', // name
@@ -315,7 +376,10 @@ class _DriverHomeState extends State<DriverHome> {
       importance: fln.Importance.max,
       playSound: true,
       enableVibration: true,
+      enableLights: true,
+      showBadge: true,
       sound: fln.RawResourceAndroidNotificationSound('ride_request_sound'),
+      audioAttributesUsage: fln.AudioAttributesUsage.notificationRingtone,
     );
 
     await notifications
@@ -614,9 +678,24 @@ class _DriverHomeState extends State<DriverHome> {
 
   Future<void> _showLocalNotification(Map<String, dynamic> data) async {
     try {
-      String customerName = data['customer_name'] ?? data['customerName'] ?? 'عميل';
-      String amount = data['amount']?.toString() ?? '0';
-      String distance = data['distance']?.toString() ?? '0 كم';
+      // استخراج البيانات بشكل قوي
+      Map<String, dynamic> rideData = data;
+      if (data['payload'] != null) {
+        try {
+          if (data['payload'] is Map) {
+            rideData = Map<String, dynamic>.from(data['payload']);
+          } else if (data['payload'] is String) {
+            rideData = jsonDecode(data['payload']);
+          }
+        } catch (e) {
+          print('⚠️ Error parsing nested payload in local notification: $e');
+        }
+      }
+
+      String customerName =
+          rideData['customer_name'] ?? rideData['customerName'] ?? 'عميل';
+      String amount = rideData['amount']?.toString() ?? '0';
+      String distance = rideData['distance']?.toString() ?? '0 كم';
 
       await notifications.show(
         DateTime.now().millisecond,
@@ -637,6 +716,7 @@ class _DriverHomeState extends State<DriverHome> {
             colorized: true,
             color: Color(0xFF16a34a),
             visibility: fln.NotificationVisibility.public,
+            ticker: 'طلب رحلة جديد',
           ),
           iOS: fln.DarwinNotificationDetails(
             presentAlert: true,
@@ -647,7 +727,7 @@ class _DriverHomeState extends State<DriverHome> {
         ),
         payload: jsonEncode(data),
       );
-      
+
       print('📱 High-priority notification shown: $customerName');
     } catch (e) {
       print('❌ Error showing notification: $e');
