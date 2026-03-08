@@ -285,7 +285,7 @@ class _DriverHomeState extends State<DriverHome> {
     if (rideId != null) {
       print('🎯 Found Ride ID: $rideId');
       _pendingRideData = data;
-      final url = "https://driver.zoonasd.com/accept-ride.html?ride_id=$rideId";
+      final url = "https://driver.zoonasd.com/driver_app/accept-ride.html?id=$rideId";
 
       if (web != null) {
         print('🌐 WebView loaded, using loadUrl: $url');
@@ -391,6 +391,19 @@ class _DriverHomeState extends State<DriverHome> {
     final prefs = await SharedPreferences.getInstance();
     driverId = prefs.getString('driver_id');
     print('📱 Restored driver ID: $driverId');
+
+    // استرجاع آخر رابط تمت زيارته لضمان استمرارية الحالة
+    final lastUrl = prefs.getString('last_url');
+    if (_pendingUrl == null && lastUrl != null && lastUrl.isNotEmpty) {
+      print('🌐 Restored last visited URL: $lastUrl');
+      if (web != null) {
+        web!.loadUrl(urlRequest: URLRequest(url: WebUri(lastUrl)));
+      } else {
+        setState(() {
+          _pendingUrl = lastUrl;
+        });
+      }
+    }
 
     if (driverId != null) {
       _listenForRides();
@@ -1212,6 +1225,13 @@ class _DriverHomeState extends State<DriverHome> {
           print('✅ Page loaded: ${url?.toString()}');
           _isPageLoaded = true;
 
+          // حفظ آخر رابط تمت زيارته لضمان استمرارية الحالة
+          if (url != null) {
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setString('last_url', url.toString());
+            print('💾 Saved last visited URL: ${url.toString()}');
+          }
+
           // أضف هذا السطر لضمان الإرسال فور تحميل الصفحة
           if (fcmToken != null) {
             print('🚀 Sending stored token after page load: $fcmToken');
@@ -1224,7 +1244,9 @@ class _DriverHomeState extends State<DriverHome> {
           }
 
           // التحقق مما إذا كانت هذه صفحة قبول الرحلة وكان هناك بيانات معلقة
-          if (url?.toString().contains('accept-ride.html') == true && _pendingRideData != null) {
+          if ((url?.toString().contains('accept-ride.html') == true ||
+               url?.toString().contains('driver_app/accept-ride.html') == true) &&
+              _pendingRideData != null) {
             print('🎯 On accept-ride page, waiting 3 seconds to send ride data...');
             final dataToSend = Map<String, dynamic>.from(_pendingRideData!);
             _pendingRideData = null; // تفريغ البيانات لتجنب التكرار
