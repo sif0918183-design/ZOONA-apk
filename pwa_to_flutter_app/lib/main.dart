@@ -1283,12 +1283,27 @@ class _DriverHomeState extends State<DriverHome> {
         },
         shouldOverrideUrlLoading: (controller, nav) async {
           final uri = nav.request.url!;
-          print('🔗 URL request: ${uri.toString()}');
-          
+          final url = uri.toString();
+          print('🔗 URL request: $url');
+
+          // فحص روابط الاتصال وواتساب لفتحها في تطبيقات خارجية
+          bool isWhatsApp = uri.scheme == 'whatsapp' ||
+              url.contains('wa.me') ||
+              url.contains('api.whatsapp.com');
+          bool isTel = uri.scheme == 'tel';
+
+          if (isWhatsApp || isTel) {
+            print('🚀 Opening external app for: $url');
+            if (await canLaunchUrl(uri)) {
+              await launchUrl(uri, mode: LaunchMode.externalApplication);
+              return NavigationActionPolicy.CANCEL;
+            }
+          }
+
           if (['http', 'https'].contains(uri.scheme)) {
             return NavigationActionPolicy.ALLOW;
           }
-          
+
           if (await canLaunchUrl(uri)) {
             await launchUrl(uri);
           }
