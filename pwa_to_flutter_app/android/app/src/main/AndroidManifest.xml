@@ -2,17 +2,13 @@
     xmlns:tools="http://schemas.android.com/tools"
     package="com.pichillilorenzo.pwa_to_flutter_app">
 
-    <!-- الأذونات الأساسية -->
     <uses-permission android:name="android.permission.INTERNET" />
-    <!-- صلاحية الإشعارات المطلوبة للأندرويد 13+ -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    
-    <!-- أذونات إضافية للمكتبات -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
@@ -90,7 +86,6 @@
 
         </activity>
 
-        <!-- Service للإشعارات المحلية -->
         <service
             android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationService"
             android:exported="false" />
@@ -100,21 +95,14 @@
             android:foregroundServiceType="specialUse"
             android:exported="false" />
 
-        <!-- Deep links إضافية -->
         <activity
             android:name="com.pichillilorenzo.flutter_inappwebview.InAppBrowserActivity"
             android:exported="false"
             android:theme="@android:style/Theme.Translucent.NoTitleBar" />
 
         <meta-data android:name="flutterEmbedding" android:value="2" />
-
-        <meta-data
-            android:name="com.google.firebase.messaging.default_notification_channel_id"
-            android:value="urgent_alerts_v5" />
-
-        <meta-data
-            android:name="com.google.firebase.messaging.default_notification_icon"
-            android:resource="@mipmap/ic_launcher" />
+        <meta-data android:name="com.google.firebase.messaging.default_notification_channel_id" android:value="urgent_alerts_v5" />
+        <meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@mipmap/ic_launcher" />
 
     </application>
 </manifest>
