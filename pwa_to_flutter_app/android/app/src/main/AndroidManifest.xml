@@ -26,6 +26,14 @@
             <data android:scheme="tel" />
         </intent>
         <intent>
+            <action android:name="android.intent.action.SENDTO" />
+            <data android:scheme="sms" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="mailto" />
+        </intent>
+        <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="whatsapp" />
         </intent>
@@ -37,6 +45,8 @@
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="https" android:host="api.whatsapp.com" />
         </intent>
+        <package android:name="com.whatsapp" />
+        <package android:name="com.whatsapp.w4b" />
     </queries>
 
     <application
