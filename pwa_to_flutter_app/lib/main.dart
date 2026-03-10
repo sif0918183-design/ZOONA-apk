@@ -187,6 +187,9 @@ class _DriverHomeState extends State<DriverHome> {
 
   InAppWebViewController? web;
   bool _isPageLoaded = false;
+  bool _canGoBack = false;
+  WebUri? _currentUrl;
+  bool _hasError = false;
   String? driverId;
   String? fcmToken;
   Map<String, dynamic>? _pendingRideData;
@@ -1039,12 +1042,28 @@ class _DriverHomeState extends State<DriverHome> {
     }
   }
 
+  bool _isActiveRidePage() {
+    if (_currentUrl == null) return false;
+    final urlStr = _currentUrl!.toString();
+    return urlStr.contains('active-ride.html') || urlStr.contains('ride-accepted.html');
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('زونا للسائقين'),
         backgroundColor: Colors.green[700],
+        leading: (_canGoBack && !_isActiveRidePage())
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () async {
+                  if (web != null) {
+                    await web!.goBack();
+                  }
+                },
+              )
+            : null,
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -1071,7 +1090,17 @@ class _DriverHomeState extends State<DriverHome> {
           ),
         ],
       ),
-      body: InAppWebView(
+      body: PopScope(
+        canPop: !_canGoBack && !_isActiveRidePage(),
+        onPopInvoked: (didPop) async {
+          if (didPop) return;
+          if (_canGoBack && !_isActiveRidePage()) {
+            await web?.goBack();
+          }
+        },
+        child: Stack(
+          children: [
+            InAppWebView(
         initialUrlRequest:
             URLRequest(url: WebUri(_pendingUrl ?? 'https://driver.zoonasd.com/')),
         initialSettings: InAppWebViewSettings(
@@ -1145,6 +1174,19 @@ class _DriverHomeState extends State<DriverHome> {
             },
           );
           return true;
+        },
+        onLoadStart: (controller, url) async {
+          setState(() {
+            _hasError = false;
+            _currentUrl = url;
+          });
+        },
+        onUpdateVisitedHistory: (controller, url, isReload) async {
+          bool canGoBack = await controller.canGoBack();
+          setState(() {
+            _canGoBack = canGoBack;
+            _currentUrl = url;
+          });
         },
         onWebViewCreated: (controller) {
           web = controller;
@@ -1224,6 +1266,11 @@ class _DriverHomeState extends State<DriverHome> {
         onLoadStop: (controller, url) async {
           print('✅ Page loaded: ${url?.toString()}');
           _isPageLoaded = true;
+          bool canGoBack = await controller.canGoBack();
+          setState(() {
+            _canGoBack = canGoBack;
+            _currentUrl = url;
+          });
 
           // حفظ آخر رابط تمت زيارته لضمان استمرارية الحالة
           if (url != null) {
@@ -1277,6 +1324,22 @@ class _DriverHomeState extends State<DriverHome> {
         },
         onLoadError: (controller, url, code, message) {
           print('❌ Page load error: $code - $message');
+          // تجاهل الأخطاء الناتجة عن المخططات الخارجية التي تعاملنا معها بالفعل
+          if (code == -10 || message.contains('ERR_UNKNOWN_URL_SCHEME')) return;
+
+          setState(() {
+            _hasError = true;
+          });
+        },
+        onReceivedHttpError: (controller, request, errorResponse) async {
+          print('❌ HTTP error: ${errorResponse.statusCode} - ${errorResponse.reasonPhrase}');
+          // إظهار صفحة الخطأ لأخطاء السيرفر الجسيمة (5xx)
+          final statusCode = errorResponse.statusCode;
+          if (statusCode != null && statusCode >= 500) {
+            setState(() {
+              _hasError = true;
+            });
+          }
         },
         onConsoleMessage: (controller, consoleMessage) {
           print('🌐 WebView Console [${consoleMessage.messageLevel}]: ${consoleMessage.message}');
@@ -1286,29 +1349,92 @@ class _DriverHomeState extends State<DriverHome> {
           final url = uri.toString();
           print('🔗 URL request: $url');
 
-          // فحص روابط الاتصال وواتساب لفتحها في تطبيقات خارجية
-          bool isWhatsApp = uri.scheme == 'whatsapp' ||
-              url.contains('wa.me') ||
-              url.contains('api.whatsapp.com');
-          bool isTel = uri.scheme == 'tel';
+          // فحص الروابط الخاصة لفتحها في تطبيقات خارجية ومنع خطأ ERR_UNKNOWN_URL_SCHEME
+          final externalSchemes = ['tel', 'whatsapp', 'sms', 'mailto', 'intent'];
+          bool isWhatsAppWeb = url.contains('wa.me') || url.contains('api.whatsapp.com');
 
-          if (isWhatsApp || isTel) {
+          if (externalSchemes.contains(uri.scheme) || isWhatsAppWeb) {
             print('🚀 Opening external app for: $url');
-            if (await canLaunchUrl(uri)) {
-              await launchUrl(uri, mode: LaunchMode.externalApplication);
-              return NavigationActionPolicy.CANCEL;
+            try {
+              if (await canLaunchUrl(uri)) {
+                await launchUrl(uri, mode: LaunchMode.externalApplication);
+              } else {
+                print('⚠️ Could not launch external URL: $url');
+              }
+            } catch (e) {
+              print('❌ Error launching external URL: $e');
             }
+            return NavigationActionPolicy.CANCEL;
           }
 
           if (['http', 'https'].contains(uri.scheme)) {
             return NavigationActionPolicy.ALLOW;
           }
 
-          if (await canLaunchUrl(uri)) {
-            await launchUrl(uri);
+          // أي مخطط آخر غير معروف، نحاول فتحه خارجياً أو نلغيه
+          print('❓ Unknown scheme: ${uri.scheme}, trying external launch');
+          try {
+            if (await canLaunchUrl(uri)) {
+              await launchUrl(uri, mode: LaunchMode.externalApplication);
+            }
+          } catch (e) {
+            print('❌ Error launching unknown scheme: $e');
           }
           return NavigationActionPolicy.CANCEL;
         },
+      ),
+      if (_hasError)
+        Container(
+          color: Colors.white,
+          width: double.infinity,
+          height: double.infinity,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.wifi_off, size: 80, color: Colors.grey),
+              const SizedBox(height: 20),
+              const Text(
+                'عذراً، حدث خطأ في الاتصال',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                'يرجى التأكد من اتصالك بالإنترنت والمحاولة مرة أخرى',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey),
+              ),
+              const SizedBox(height: 30),
+              ElevatedButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _hasError = false;
+                  });
+                  web?.reload();
+                },
+                icon: const Icon(Icons.refresh),
+                label: const Text('إعادة المحاولة'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green[700],
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 12),
+                ),
+              ),
+              TextButton(
+                onPressed: () {
+                  setState(() {
+                    _hasError = false;
+                  });
+                  web?.loadUrl(
+                    urlRequest: URLRequest(url: WebUri('https://driver.zoonasd.com/'))
+                  );
+                },
+                child: const Text('العودة للرئيسية'),
+              ),
+            ],
+          ),
+        ),
+          ],
+        ),
       ),
       floatingActionButton: driverId != null
           ? FloatingActionButton(
