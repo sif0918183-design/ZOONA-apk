@@ -1286,27 +1286,45 @@ class _DriverHomeState extends State<DriverHome> {
           final url = uri.toString();
           print('🔗 URL request: $url');
 
-          // فحص روابط الاتصال وواتساب لفتحها في تطبيقات خارجية
-          bool isWhatsApp = uri.scheme == 'whatsapp' ||
-              url.contains('wa.me') ||
-              url.contains('api.whatsapp.com');
-          bool isTel = uri.scheme == 'tel';
+          // List of schemes and patterns that should be handled by external applications
+          final externalSchemes = ['tel', 'whatsapp', 'sms', 'mailto', 'intent'];
+          final whatsAppDomains = ['wa.me', 'api.whatsapp.com'];
 
-          if (isWhatsApp || isTel) {
-            print('🚀 Opening external app for: $url');
-            if (await canLaunchUrl(uri)) {
-              await launchUrl(uri, mode: LaunchMode.externalApplication);
+          bool isExternalScheme = externalSchemes.contains(uri.scheme);
+          bool isWhatsAppWeb = whatsAppDomains.any((domain) => url.contains(domain));
+
+          if (isExternalScheme || isWhatsAppWeb) {
+            print('🚀 Attempting to open external app for: $url');
+            try {
+              if (await canLaunchUrl(uri)) {
+                await launchUrl(uri, mode: LaunchMode.externalApplication);
+                return NavigationActionPolicy.CANCEL;
+              } else {
+                print('⚠️ Could not launch URL: $url');
+                // Even if we can't launch it, we must CANCEL to avoid ERR_UNKNOWN_URL_SCHEME
+                return NavigationActionPolicy.CANCEL;
+              }
+            } catch (e) {
+              print('❌ Error launching external app: $e');
               return NavigationActionPolicy.CANCEL;
             }
           }
 
-          if (['http', 'https'].contains(uri.scheme)) {
+          // Allow only standard web schemes to be loaded by the WebView
+          if (['http', 'https', 'file', 'chrome', 'data', 'javascript', 'about'].contains(uri.scheme)) {
             return NavigationActionPolicy.ALLOW;
           }
 
-          if (await canLaunchUrl(uri)) {
-            await launchUrl(uri);
+          // For any other unknown scheme, try to launch it externally and always cancel WebView navigation
+          print('⚠️ Unknown scheme detected: ${uri.scheme}. Trying external launch.');
+          try {
+            if (await canLaunchUrl(uri)) {
+              await launchUrl(uri, mode: LaunchMode.externalApplication);
+            }
+          } catch (e) {
+            print('❌ Error in fallback external launch: $e');
           }
+
           return NavigationActionPolicy.CANCEL;
         },
       ),
