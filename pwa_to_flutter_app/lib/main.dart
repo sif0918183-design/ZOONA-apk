@@ -1092,7 +1092,7 @@ class _DriverHomeState extends State<DriverHome> {
       ),
       body: PopScope(
         canPop: !_canGoBack && !_isActiveRidePage(),
-        onPopInvokedWithResult: (didPop, result) async {
+        onPopInvoked: (didPop) async {
           if (didPop) return;
           if (_canGoBack && !_isActiveRidePage()) {
             await web?.goBack();
@@ -1334,7 +1334,8 @@ class _DriverHomeState extends State<DriverHome> {
         onReceivedHttpError: (controller, request, errorResponse) async {
           print('❌ HTTP error: ${errorResponse.statusCode} - ${errorResponse.reasonPhrase}');
           // إظهار صفحة الخطأ لأخطاء السيرفر الجسيمة (5xx)
-          if (errorResponse.statusCode >= 500) {
+          final statusCode = errorResponse.statusCode;
+          if (statusCode != null && statusCode >= 500) {
             setState(() {
               _hasError = true;
             });
