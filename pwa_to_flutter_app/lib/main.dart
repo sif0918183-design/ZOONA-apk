@@ -1010,31 +1010,27 @@ class _DriverHomeState extends State<DriverHome> {
     try {
       print('📡 Updating driver status in Supabase: ${isOnline ? 'ONLINE' : 'OFFLINE'}');
       
-      final result = await supabase.from('driver_locations').upsert({
+      await supabase.from('driver_locations').upsert({
         'driver_id': driverId,
         'is_online': isOnline,
         'last_seen': DateTime.now().toIso8601String(),
         'updated_at': DateTime.now().toIso8601String(),
-      });
+      }).timeout(const Duration(seconds: 15));
       
-      if (result.status == 201 || result.status == 200 || result.status == 204) {
-        print('✅ Driver status updated successfully');
-      } else {
-        print('⚠️ Driver status update returned status: ${result.status}');
-      }
+      print('✅ Driver status updated successfully in Supabase');
     } catch (e) {
-      print('❌ Error updating driver status: $e');
+      print('❌ Error updating driver status in Supabase: $e');
       print('Driver ID: $driverId');
       
-      // محاولة بديلة
+      // محاولة بديلة في حالة فشل الـ upsert
       try {
         await supabase.from('driver_locations').update({
           'is_online': isOnline,
           'updated_at': DateTime.now().toIso8601String(),
-        }).eq('driver_id', driverId!);
+        }).eq('driver_id', driverId!).timeout(const Duration(seconds: 15));
         print('✅ Driver status updated (fallback method)');
       } catch (fallbackError) {
-        print('❌ Fallback update also failed: $fallbackError');
+        print('❌ Fallback status update failed: $fallbackError');
       }
     }
   }
@@ -1296,31 +1292,24 @@ class _DriverHomeState extends State<DriverHome> {
           if (isExternalScheme || isWhatsAppWeb) {
             print('🚀 Attempting to open external app for: $url');
             try {
-              if (await canLaunchUrl(uri)) {
-                await launchUrl(uri, mode: LaunchMode.externalApplication);
-                return NavigationActionPolicy.CANCEL;
-              } else {
-                print('⚠️ Could not launch URL: $url');
-                // Even if we can't launch it, we must CANCEL to avoid ERR_UNKNOWN_URL_SCHEME
-                return NavigationActionPolicy.CANCEL;
-              }
+              // إلغاء الاعتماد على canLaunchUrl وفتح الرابط مباشرة
+              await launchUrl(uri, mode: LaunchMode.externalApplication);
             } catch (e) {
               print('❌ Error launching external app: $e');
-              return NavigationActionPolicy.CANCEL;
             }
+            // دائماً نلغي التحميل في الـ WebView لهذه الروابط لمنع ERR_UNKNOWN_URL_SCHEME
+            return NavigationActionPolicy.CANCEL;
           }
 
-          // Allow only standard web schemes to be loaded by the WebView
+          // السماح فقط للروابط العادية بالتحميل داخل الـ WebView
           if (['http', 'https', 'file', 'chrome', 'data', 'javascript', 'about'].contains(uri.scheme)) {
             return NavigationActionPolicy.ALLOW;
           }
 
-          // For any other unknown scheme, try to launch it externally and always cancel WebView navigation
+          // لأي بروتوكول آخر غير معروف، نحاول فتحه خارجياً ونلغي التحميل داخلياً
           print('⚠️ Unknown scheme detected: ${uri.scheme}. Trying external launch.');
           try {
-            if (await canLaunchUrl(uri)) {
-              await launchUrl(uri, mode: LaunchMode.externalApplication);
-            }
+            await launchUrl(uri, mode: LaunchMode.externalApplication);
           } catch (e) {
             print('❌ Error in fallback external launch: $e');
           }
