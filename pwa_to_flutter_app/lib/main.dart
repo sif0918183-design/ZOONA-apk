@@ -186,7 +186,9 @@ class _DriverHomeState extends State<DriverHome> {
   Timer? statusSyncTimer;
   Timer? connectionCheckTimer;
   Timer? cacheCheckTimer;
-  StreamSubscription<ConnectivityResult>? connectivitySubscription;
+  
+  // --- تصحيح نوع المتغير ليتوافق مع connectivity_plus v6 ---
+  StreamSubscription<List<ConnectivityResult>>? connectivitySubscription;
 
   @override
   void initState() {
@@ -313,9 +315,10 @@ class _DriverHomeState extends State<DriverHome> {
     );
   }
 
+  // --- تصحيح معالج الاتصال ليتوافق مع القائمة المستلمة من الإصدار الجديد ---
   void _initConnectivity() {
-    connectivitySubscription = Connectivity().onConnectivityChanged.listen((result) {
-      if (result != ConnectivityResult.none && driverId != null) {
+    connectivitySubscription = Connectivity().onConnectivityChanged.listen((List<ConnectivityResult> results) {
+      if (results.isNotEmpty && results.first != ConnectivityResult.none && driverId != null) {
         _listenForRides();
         _updateDriverStatusInSupabase(true);
       }
@@ -456,7 +459,7 @@ class _DriverHomeState extends State<DriverHome> {
           geolocationEnabled: true,
           allowFileAccessFromFileURLs: true,
           allowUniversalAccessFromFileURLs: true,
-          useShouldOverrideUrlLoading: true, // تفعيل التحكم في الروابط
+          useShouldOverrideUrlLoading: true,
           userAgent: "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36",
         ),
         onGeolocationPermissionsShowPrompt: (controller, origin) async => GeolocationPermissionShowPromptResponse(origin: origin, allow: true, retain: true),
@@ -476,14 +479,10 @@ class _DriverHomeState extends State<DriverHome> {
           if (fcmToken != null) _sendTokenToPWA(fcmToken!);
           _startDriverSync();
         },
-
-        // --- الإصلاح الجوهري لروابط واتساب والاتصال ---
         shouldOverrideUrlLoading: (controller, nav) async {
           final uri = nav.request.url!;
           final url = uri.toString();
-          print('🔗 فحص الرابط المفتوح: $url');
-
-          // التعرف على واتساب، الاتصال، الرسائل، والإيميل
+          
           final bool isExternalApp = 
               url.startsWith('whatsapp://') || 
               url.startsWith('tel:') || 
@@ -493,18 +492,14 @@ class _DriverHomeState extends State<DriverHome> {
               url.contains('api.whatsapp.com');
 
           if (isExternalApp) {
-            print('🚀 توجيه إلى تطبيق خارجي ومنع الـ WebView من تحميل الرابط');
             try {
-              // فتح الرابط في التطبيق الخارجي مباشرة
               await launchUrl(uri, mode: LaunchMode.externalApplication);
             } catch (e) {
-              print('❌ خطأ في فتح التطبيق: $e');
+              print('❌ Error opening external app: $e');
             }
-            // الإلغاء هنا هو ما يمنع ERR_UNKNOWN_URL_SCHEME
             return NavigationActionPolicy.CANCEL;
           }
 
-          // السماح فقط للروابط العادية بالتحميل داخلياً
           if (uri.scheme == 'http' || uri.scheme == 'https') {
             return NavigationActionPolicy.ALLOW;
           }
