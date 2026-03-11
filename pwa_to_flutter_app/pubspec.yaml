@@ -10,29 +10,24 @@ dependencies:
   flutter:
     sdk: flutter
   
-  # تحديث Supabase لضمان استقرار الاتصال
   supabase_flutter: ^2.8.4
-  
-  # تحديث مكتبات Firebase للتوافق مع Gradle 8+ و Android 15
-  firebase_core: ^2.32.0
-  firebase_messaging: ^15.0.3
-  
-  # نسخة مستقرة من WebView
+  firebase_core: ^3.0.0
+  firebase_messaging: ^15.0.0
   flutter_inappwebview: ^6.1.5
-  
-  audioplayers: 5.2.1
-  audioplayers_web: 4.1.0
+  audioplayers: ^5.2.1
+  audioplayers_web: ^4.1.0
   vibration: ^1.9.0
   
-  # الحل الجوهري: تحديث هذا الإصدار لفك تعارض SDK 35
+  # هذا هو الإصدار الذي يحل مشكلة الـ SDK 35
   flutter_local_notifications: ^17.2.2
   
   shared_preferences: ^2.5.3
   permission_handler: ^11.3.1
-  connectivity_plus: ^6.0.5
-  url_launcher: ^6.3.10
+  connectivity_plus: ^6.0.0
   
-  # نسخة المهام في الخلفية المتوافقة مع Android 14/15
+  # تم التصحيح هنا من 6.3.10 إلى 6.3.1
+  url_launcher: ^6.3.1
+  
   flutter_foreground_task: ^9.2.1
 
 dev_dependencies:
@@ -40,7 +35,6 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^3.0.1
 
-# إزالة التجاوزات (Overrides) ما لم تكن هناك ضرورة قصوى، لترك Flutter يحل التبعات تلقائياً
 dependency_overrides:
   firebase_core_web: ^2.17.4
 
