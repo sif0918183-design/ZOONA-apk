@@ -97,7 +97,7 @@ class MyTaskHandler extends TaskHandler {
   void onRepeatEvent(DateTime timestamp) {}
 
   @override
-  Future<void> onDestroy(DateTime timestamp) async {
+  Future<void> onDestroy(DateTime timestamp, bool isTimeout) async {
     print('🛑 Foreground Task Destroyed');
   }
 }
@@ -135,8 +135,8 @@ void _initForegroundTask() {
       channelId: 'foreground_service',
       channelName: 'Foreground Service Notification',
       channelDescription: 'This notification appears when the foreground service is running.',
-      channelImportance: NotificationChannelImportance.LOW,
-      priority: NotificationPriority.LOW,
+      channelImportance: NotificationChannelImportance.HIGH,
+      priority: NotificationPriority.HIGH,
     ),
     iosNotificationOptions: const IOSNotificationOptions(
       showNotification: true,
@@ -309,6 +309,7 @@ class _DriverHomeState extends State<DriverHome> {
       notificationTitle: 'زونا للسائقين تعمل في الخلفية',
       notificationText: 'جاهز لاستقبال طلبات الرحلات',
       callback: startCallback,
+      serviceTypes: [ForegroundServiceTypes.specialUse],
     );
   }
 
@@ -366,7 +367,7 @@ class _DriverHomeState extends State<DriverHome> {
       await audioPlayer.setSource(AssetSource('ride_request_sound.mp3'));
       await audioPlayer.resume();
       if (await Vibration.hasVibrator() ?? false) {
-        loop ? Vibration.vibrate(pattern: [500, 1000], repeat: 0) : Vibration.vibrate(duration: 500);
+        loop ? Vibration.vibrate(pattern: [500, 1000, 500, 1000], repeat: 0) : Vibration.vibrate(duration: 500);
       }
     } catch (_) {}
   }
@@ -377,7 +378,18 @@ class _DriverHomeState extends State<DriverHome> {
       String amount = data['amount']?.toString() ?? '0';
       await notifications.show(
         DateTime.now().millisecond, 'طلب رحلة جديد 🚗', '$customerName - $amount SDG',
-        const fln.NotificationDetails(android: fln.AndroidNotificationDetails('urgent_alerts_v5', 'Urgent Alerts', importance: fln.Importance.max, priority: fln.Priority.high, playSound: true, sound: fln.RawResourceAndroidNotificationSound('ride_request_sound'))),
+        const fln.NotificationDetails(
+          android: fln.AndroidNotificationDetails(
+            'urgent_alerts_v5',
+            'Urgent Alerts',
+            importance: fln.Importance.max,
+            priority: fln.Priority.high,
+            fullScreenIntent: true,
+            category: fln.AndroidNotificationCategory.call,
+            playSound: true,
+            sound: fln.RawResourceAndroidNotificationSound('ride_request_sound'),
+          ),
+        ),
         payload: jsonEncode(data),
       );
     } catch (_) {}
