@@ -97,7 +97,7 @@ class MyTaskHandler extends TaskHandler {
   void onRepeatEvent(DateTime timestamp) {}
 
   @override
-  Future<void> onDestroy(DateTime timestamp) async {
+  Future<void> onDestroy(DateTime timestamp, bool isTimeout) async {
     print('🛑 Foreground Task Destroyed');
   }
 }
@@ -135,8 +135,8 @@ void _initForegroundTask() {
       channelId: 'foreground_service',
       channelName: 'Foreground Service Notification',
       channelDescription: 'This notification appears when the foreground service is running.',
-      channelImportance: NotificationChannelImportance.LOW,
-      priority: NotificationPriority.LOW,
+      channelImportance: NotificationChannelImportance.HIGH,
+      priority: NotificationPriority.HIGH,
     ),
     iosNotificationOptions: const IOSNotificationOptions(
       showNotification: true,
@@ -186,7 +186,9 @@ class _DriverHomeState extends State<DriverHome> {
   Timer? statusSyncTimer;
   Timer? connectionCheckTimer;
   Timer? cacheCheckTimer;
-  StreamSubscription<ConnectivityResult>? connectivitySubscription;
+  
+  // --- تصحيح نوع المتغير ليتوافق مع connectivity_plus v6 ---
+  StreamSubscription<List<ConnectivityResult>>? connectivitySubscription;
 
   @override
   void initState() {
@@ -309,12 +311,14 @@ class _DriverHomeState extends State<DriverHome> {
       notificationTitle: 'زونا للسائقين تعمل في الخلفية',
       notificationText: 'جاهز لاستقبال طلبات الرحلات',
       callback: startCallback,
+      serviceTypes: [ForegroundServiceTypes.specialUse],
     );
   }
 
+  // --- تصحيح معالج الاتصال ليتوافق مع القائمة المستلمة من الإصدار الجديد ---
   void _initConnectivity() {
-    connectivitySubscription = Connectivity().onConnectivityChanged.listen((result) {
-      if (result != ConnectivityResult.none && driverId != null) {
+    connectivitySubscription = Connectivity().onConnectivityChanged.listen((List<ConnectivityResult> results) {
+      if (results.isNotEmpty && results.first != ConnectivityResult.none && driverId != null) {
         _listenForRides();
         _updateDriverStatusInSupabase(true);
       }
@@ -366,7 +370,7 @@ class _DriverHomeState extends State<DriverHome> {
       await audioPlayer.setSource(AssetSource('ride_request_sound.mp3'));
       await audioPlayer.resume();
       if (await Vibration.hasVibrator() ?? false) {
-        loop ? Vibration.vibrate(pattern: [500, 1000], repeat: 0) : Vibration.vibrate(duration: 500);
+        loop ? Vibration.vibrate(pattern: [500, 1000, 500, 1000], repeat: 0) : Vibration.vibrate(duration: 500);
       }
     } catch (_) {}
   }
@@ -377,7 +381,18 @@ class _DriverHomeState extends State<DriverHome> {
       String amount = data['amount']?.toString() ?? '0';
       await notifications.show(
         DateTime.now().millisecond, 'طلب رحلة جديد 🚗', '$customerName - $amount SDG',
-        const fln.NotificationDetails(android: fln.AndroidNotificationDetails('urgent_alerts_v5', 'Urgent Alerts', importance: fln.Importance.max, priority: fln.Priority.high, playSound: true, sound: fln.RawResourceAndroidNotificationSound('ride_request_sound'))),
+        const fln.NotificationDetails(
+          android: fln.AndroidNotificationDetails(
+            'urgent_alerts_v5',
+            'Urgent Alerts',
+            importance: fln.Importance.max,
+            priority: fln.Priority.high,
+            fullScreenIntent: true,
+            category: fln.AndroidNotificationCategory.call,
+            playSound: true,
+            sound: fln.RawResourceAndroidNotificationSound('ride_request_sound'),
+          ),
+        ),
         payload: jsonEncode(data),
       );
     } catch (_) {}
@@ -444,7 +459,7 @@ class _DriverHomeState extends State<DriverHome> {
           geolocationEnabled: true,
           allowFileAccessFromFileURLs: true,
           allowUniversalAccessFromFileURLs: true,
-          useShouldOverrideUrlLoading: true, // تفعيل التحكم في الروابط
+          useShouldOverrideUrlLoading: true,
           userAgent: "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36",
         ),
         onGeolocationPermissionsShowPrompt: (controller, origin) async => GeolocationPermissionShowPromptResponse(origin: origin, allow: true, retain: true),
@@ -464,14 +479,10 @@ class _DriverHomeState extends State<DriverHome> {
           if (fcmToken != null) _sendTokenToPWA(fcmToken!);
           _startDriverSync();
         },
-
-        // --- الإصلاح الجوهري لروابط واتساب والاتصال ---
         shouldOverrideUrlLoading: (controller, nav) async {
           final uri = nav.request.url!;
           final url = uri.toString();
-          print('🔗 فحص الرابط المفتوح: $url');
-
-          // التعرف على واتساب، الاتصال، الرسائل، والإيميل
+          
           final bool isExternalApp = 
               url.startsWith('whatsapp://') || 
               url.startsWith('tel:') || 
@@ -481,18 +492,14 @@ class _DriverHomeState extends State<DriverHome> {
               url.contains('api.whatsapp.com');
 
           if (isExternalApp) {
-            print('🚀 توجيه إلى تطبيق خارجي ومنع الـ WebView من تحميل الرابط');
             try {
-              // فتح الرابط في التطبيق الخارجي مباشرة
               await launchUrl(uri, mode: LaunchMode.externalApplication);
             } catch (e) {
-              print('❌ خطأ في فتح التطبيق: $e');
+              print('❌ Error opening external app: $e');
             }
-            // الإلغاء هنا هو ما يمنع ERR_UNKNOWN_URL_SCHEME
             return NavigationActionPolicy.CANCEL;
           }
 
-          // السماح فقط للروابط العادية بالتحميل داخلياً
           if (uri.scheme == 'http' || uri.scheme == 'https') {
             return NavigationActionPolicy.ALLOW;
           }

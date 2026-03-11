@@ -4,33 +4,39 @@ publish_to: 'none'
 version: 1.0.0+1
 
 environment:
-  sdk: '>=3.2.0 <4.0.0'
+  sdk: ">=3.5.0 <4.0.0"
 
 dependencies:
   flutter:
     sdk: flutter
+  
   supabase_flutter: ^2.8.4
-  firebase_core: 2.22.0
-  firebase_messaging: 14.7.4
-  flutter_inappwebview: 6.0.0-beta.10
-  audioplayers: 5.2.1
-  audioplayers_web: 4.1.0
-  vibration: 1.9.0
-  flutter_local_notifications: 17.1.2
-  shared_preferences: 2.2.2
-  permission_handler: 11.0.1
-  connectivity_plus: 5.0.2
-  url_launcher: 6.1.14
-  flutter_foreground_task: ^8.17.0
+  firebase_core: ^3.0.0
+  firebase_messaging: ^15.0.0
+  flutter_inappwebview: ^6.1.5
+  audioplayers: ^5.2.1
+  audioplayers_web: ^4.1.0
+  vibration: ^1.9.0
+  
+  # هذا هو الإصدار الذي يحل مشكلة الـ SDK 35
+  flutter_local_notifications: ^17.2.2
+  
+  shared_preferences: ^2.5.3
+  permission_handler: ^11.3.1
+  connectivity_plus: ^6.0.0
+  
+  # تم التصحيح هنا من 6.3.10 إلى 6.3.1
+  url_launcher: ^6.3.1
+  
+  flutter_foreground_task: ^9.2.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: 3.0.1
+  flutter_lints: ^3.0.1
 
 dependency_overrides:
-  firebase_core_web: 2.11.0
-  web: 0.3.0
+  firebase_core_web: ^2.17.4
 
 flutter:
   uses-material-design: true
