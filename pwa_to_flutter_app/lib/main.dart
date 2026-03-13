@@ -82,11 +82,11 @@ class MyTaskHandler extends TaskHandler {
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // --- التعديل هنا لظهار شريط الساعة والبطارية بشكل شفاف متناسق ---
+  // ضبط وضع الحواف (Edge-to-Edge) مع الحفاظ على شفافية الأشرطة
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-    statusBarColor: Colors.transparent, // جعل الخلفية شفافة ليظهر لون الـ PWA خلفها
-    statusBarIconBrightness: Brightness.light, // جعل أيقونات الساعة والبطارية بيضاء لتناسب الهيدر الغامق
+    statusBarColor: Colors.transparent, 
+    statusBarIconBrightness: Brightness.light, 
     systemNavigationBarColor: Colors.transparent,
   ));
 
@@ -323,39 +323,41 @@ class _DriverHomeState extends State<DriverHome> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      extendBodyBehindAppBar: true, // للسماح لمحتوى الويب بالظهور خلف شريط الحالة
-      body: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: const SystemUiOverlayStyle(
-          statusBarColor: Colors.transparent,
-          statusBarIconBrightness: Brightness.light,
-        ),
-        child: InAppWebView(
-          initialUrlRequest: URLRequest(url: WebUri(_pendingUrl ?? 'https://driver.zoonasd.com/')),
-          initialSettings: InAppWebViewSettings(
-            javaScriptEnabled: true,
-            domStorageEnabled: true,
-            geolocationEnabled: true,
-            useShouldOverrideUrlLoading: true,
-            userAgent: "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36",
+      // تطبيق الحل الثاني: استخدام SafeArea لحجز مساحة شريط النظام
+      body: SafeArea(
+        child: AnnotatedRegion<SystemUiOverlayStyle>(
+          value: const SystemUiOverlayStyle(
+            statusBarColor: Colors.transparent,
+            statusBarIconBrightness: Brightness.light,
           ),
-          onWebViewCreated: (controller) {
-            web = controller;
-            controller.addJavaScriptHandler(handlerName: 'driverLogin', callback: (args) { if (args.isNotEmpty && args[0] is Map) _saveDriver(args[0]['driverId'].toString()); });
-          },
-          onLoadStop: (controller, url) async {
-            _isPageLoaded = true;
-            if (url != null) { final prefs = await SharedPreferences.getInstance(); await prefs.setString('last_url', url.toString()); }
-            if (fcmToken != null) _sendTokenToPWA(fcmToken!);
-            _startDriverSync();
-          },
-          shouldOverrideUrlLoading: (controller, nav) async {
-            final uri = nav.request.url!;
-            if (['whatsapp', 'tel', 'sms', 'mailto'].contains(uri.scheme) || uri.toString().contains('wa.me')) {
-              try { await launchUrl(uri, mode: LaunchMode.externalApplication); } catch (_) {}
-              return NavigationActionPolicy.CANCEL;
-            }
-            return NavigationActionPolicy.ALLOW;
-          },
+          child: InAppWebView(
+            initialUrlRequest: URLRequest(url: WebUri(_pendingUrl ?? 'https://driver.zoonasd.com/')),
+            initialSettings: InAppWebViewSettings(
+              javaScriptEnabled: true,
+              domStorageEnabled: true,
+              geolocationEnabled: true,
+              useShouldOverrideUrlLoading: true,
+              userAgent: "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36",
+            ),
+            onWebViewCreated: (controller) {
+              web = controller;
+              controller.addJavaScriptHandler(handlerName: 'driverLogin', callback: (args) { if (args.isNotEmpty && args[0] is Map) _saveDriver(args[0]['driverId'].toString()); });
+            },
+            onLoadStop: (controller, url) async {
+              _isPageLoaded = true;
+              if (url != null) { final prefs = await SharedPreferences.getInstance(); await prefs.setString('last_url', url.toString()); }
+              if (fcmToken != null) _sendTokenToPWA(fcmToken!);
+              _startDriverSync();
+            },
+            shouldOverrideUrlLoading: (controller, nav) async {
+              final uri = nav.request.url!;
+              if (['whatsapp', 'tel', 'sms', 'mailto'].contains(uri.scheme) || uri.toString().contains('wa.me')) {
+                try { await launchUrl(uri, mode: LaunchMode.externalApplication); } catch (_) {}
+                return NavigationActionPolicy.CANCEL;
+              }
+              return NavigationActionPolicy.ALLOW;
+            },
+          ),
         ),
       ),
     );
