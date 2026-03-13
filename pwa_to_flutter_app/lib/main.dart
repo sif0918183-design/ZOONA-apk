@@ -7,6 +7,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // تم إضافة هذا الاستيراد للتحكم بملء الشاشة
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart' as fln;
 import 'package:permission_handler/permission_handler.dart';
@@ -104,6 +105,14 @@ class MyTaskHandler extends TaskHandler {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // --- تفعيل وضع ملء الشاشة الكامل لإخفاء شريط النظام العلوي ---
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
+    statusBarIconBrightness: Brightness.light,
+  ));
+
   await Firebase.initializeApp();
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
@@ -435,7 +444,7 @@ class _DriverHomeState extends State<DriverHome> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('زونا للسائقين'), backgroundColor: Colors.green[700]),
+      // تم إزالة الـ AppBar تماماً ليظهر فقط هيدر الـ PWA
       body: InAppWebView(
         initialUrlRequest: URLRequest(url: WebUri(_pendingUrl ?? 'https://driver.zoonasd.com/')),
         initialSettings: InAppWebViewSettings(
@@ -444,7 +453,7 @@ class _DriverHomeState extends State<DriverHome> {
           geolocationEnabled: true,
           allowFileAccessFromFileURLs: true,
           allowUniversalAccessFromFileURLs: true,
-          useShouldOverrideUrlLoading: true, // تفعيل التحكم في الروابط
+          useShouldOverrideUrlLoading: true,
           userAgent: "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36",
         ),
         onGeolocationPermissionsShowPrompt: (controller, origin) async => GeolocationPermissionShowPromptResponse(origin: origin, allow: true, retain: true),
@@ -465,13 +474,10 @@ class _DriverHomeState extends State<DriverHome> {
           _startDriverSync();
         },
 
-        // --- الإصلاح الجوهري لروابط واتساب والاتصال ---
         shouldOverrideUrlLoading: (controller, nav) async {
           final uri = nav.request.url!;
           final url = uri.toString();
-          print('🔗 فحص الرابط المفتوح: $url');
-
-          // التعرف على واتساب، الاتصال، الرسائل، والإيميل
+          
           final bool isExternalApp = 
               url.startsWith('whatsapp://') || 
               url.startsWith('tel:') || 
@@ -481,18 +487,14 @@ class _DriverHomeState extends State<DriverHome> {
               url.contains('api.whatsapp.com');
 
           if (isExternalApp) {
-            print('🚀 توجيه إلى تطبيق خارجي ومنع الـ WebView من تحميل الرابط');
             try {
-              // فتح الرابط في التطبيق الخارجي مباشرة
               await launchUrl(uri, mode: LaunchMode.externalApplication);
             } catch (e) {
               print('❌ خطأ في فتح التطبيق: $e');
             }
-            // الإلغاء هنا هو ما يمنع ERR_UNKNOWN_URL_SCHEME
             return NavigationActionPolicy.CANCEL;
           }
 
-          // السماح فقط للروابط العادية بالتحميل داخلياً
           if (uri.scheme == 'http' || uri.scheme == 'https') {
             return NavigationActionPolicy.ALLOW;
           }
