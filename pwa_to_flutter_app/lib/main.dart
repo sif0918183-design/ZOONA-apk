@@ -82,14 +82,9 @@ class MyTaskHandler extends TaskHandler {
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // ضبط وضع الحواف (Edge-to-Edge) مع الحفاظ على شفافية الأشرطة
+  // ضبط النظام ليسمح بظهور الأيقونات بوضوح
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-    statusBarColor: Colors.transparent, 
-    statusBarIconBrightness: Brightness.light, 
-    systemNavigationBarColor: Colors.transparent,
-  ));
-
+  
   await Firebase.initializeApp();
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
@@ -323,13 +318,15 @@ class _DriverHomeState extends State<DriverHome> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // تطبيق الحل الثاني: استخدام SafeArea لحجز مساحة شريط النظام
-      body: SafeArea(
-        child: AnnotatedRegion<SystemUiOverlayStyle>(
-          value: const SystemUiOverlayStyle(
-            statusBarColor: Colors.transparent,
-            statusBarIconBrightness: Brightness.light,
-          ),
+      body: AnnotatedRegion<SystemUiOverlayStyle>(
+        // هنا تم تغيير Brightness.light إلى Brightness.dark لتظهر الأيقونات باللون الأسود
+        value: const SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: Brightness.dark, // أيقونات سوداء للتباين مع الهيدر الأبيض
+          systemNavigationBarColor: Colors.white,
+          systemNavigationBarIconBrightness: Brightness.dark,
+        ),
+        child: SafeArea(
           child: InAppWebView(
             initialUrlRequest: URLRequest(url: WebUri(_pendingUrl ?? 'https://driver.zoonasd.com/')),
             initialSettings: InAppWebViewSettings(
