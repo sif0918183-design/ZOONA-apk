@@ -82,7 +82,6 @@ class MyTaskHandler extends TaskHandler {
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // ضبط النظام ليسمح بظهور الأيقونات بوضوح
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   
   await Firebase.initializeApp();
@@ -319,10 +318,9 @@ class _DriverHomeState extends State<DriverHome> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: AnnotatedRegion<SystemUiOverlayStyle>(
-        // هنا تم تغيير Brightness.light إلى Brightness.dark لتظهر الأيقونات باللون الأسود
         value: const SystemUiOverlayStyle(
           statusBarColor: Colors.transparent,
-          statusBarIconBrightness: Brightness.dark, // أيقونات سوداء للتباين مع الهيدر الأبيض
+          statusBarIconBrightness: Brightness.dark,
           systemNavigationBarColor: Colors.white,
           systemNavigationBarIconBrightness: Brightness.dark,
         ),
@@ -332,13 +330,17 @@ class _DriverHomeState extends State<DriverHome> {
             initialSettings: InAppWebViewSettings(
               javaScriptEnabled: true,
               domStorageEnabled: true,
-              geolocationEnabled: true,
+              geolocationEnabled: true, // تفعيل الجيولوكيشن
               useShouldOverrideUrlLoading: true,
               userAgent: "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36",
             ),
             onWebViewCreated: (controller) {
               web = controller;
               controller.addJavaScriptHandler(handlerName: 'driverLogin', callback: (args) { if (args.isNotEmpty && args[0] is Map) _saveDriver(args[0]['driverId'].toString()); });
+            },
+            // --- الإضافة الجديدة لمعالجة طلب الموقع الجغرافي داخل الويب ---
+            onGeolocationPermissionsShowPrompt: (controller, origin) async {
+              return GeolocationPermissionShowPromptResponse(origin: origin, allow: true, retain: true);
             },
             onLoadStop: (controller, url) async {
               _isPageLoaded = true;
