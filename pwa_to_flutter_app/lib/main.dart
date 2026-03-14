@@ -18,10 +18,19 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:vibration/vibration.dart';
 import 'webview_popup.dart';
 
+// تعريف مشغل صوت عالمي لضمان الوصول إليه من الخلفية
+final AudioPlayer globalAudioPlayer = AudioPlayer();
+
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
   
+  // تشغيل الصوت يدوياً في الخلفية فور وصول الرسالة لضمان عدم الاعتماد على القناة فقط
+  try {
+    await globalAudioPlayer.setReleaseMode(ReleaseMode.loop);
+    await globalAudioPlayer.play(AssetSource('ride_request_sound.mp3'), volume: 1.0);
+  } catch (e) {}
+
   final fln.FlutterLocalNotificationsPlugin notifications = fln.FlutterLocalNotificationsPlugin();
   const android = fln.AndroidInitializationSettings('@mipmap/ic_launcher');
   await notifications.initialize(const fln.InitializationSettings(android: android));
@@ -30,40 +39,21 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   String title = message.notification?.title ?? "طلب رحلة جديد 🚗";
   String body = message.notification?.body ?? "لديك طلب رحلة جديد في انتظارك";
 
-  if (data.isNotEmpty) {
-    Map<String, dynamic> rideData = data;
-    if (data['payload'] != null) {
-      try {
-        if (data['payload'] is Map) {
-          rideData = Map<String, dynamic>.from(data['payload']);
-        } else if (data['payload'] is String) {
-          rideData = jsonDecode(data['payload']);
-        }
-      } catch (e) {}
-    }
-    if (message.notification == null) {
-      final customerName = rideData['customer_name'] ?? rideData['customerName'] ?? 'عميل';
-      final amount = rideData['amount']?.toString() ?? '---';
-      title = 'طلب رحلة من $customerName 🚗';
-      body = 'المبلغ المتوقع: $amount SDG';
-    }
-  }
-
-  // استخدام قناة V9 الجديدة كلياً هنا أيضاً
+  // استخدام قناة V10 الجديدة كلياً لكسر أي كتم سابق في النظام
   await notifications.show(
     DateTime.now().millisecond, title, body,
     const fln.NotificationDetails(
       android: fln.AndroidNotificationDetails(
-        'urgent_calls_v9', 
-        'طلبات الرحلات الهامة',
+        'emergency_channel_v10', 
+        'تنبيهات الطوارئ - زونا',
         importance: fln.Importance.max,
         priority: fln.Priority.high,
         fullScreenIntent: true,
         playSound: true,
         sound: fln.RawResourceAndroidNotificationSound('ride_request_sound'),
-        color: Color(0xFF16a34a),
-        ongoing: true,
-        styleInformation: fln.BigTextStyleInformation(''),
+        enableVibration: true,
+        channelShowBadge: true,
+        visibility: fln.NotificationVisibility.public,
       ),
     ),
     payload: jsonEncode(data),
@@ -109,9 +99,9 @@ void _initForegroundTask() {
   FlutterForegroundTask.init(
     androidNotificationOptions: AndroidNotificationOptions(
       channelId: 'foreground_service',
-      channelName: 'Foreground Service Notification',
-      channelImportance: NotificationChannelImportance.LOW,
-      priority: NotificationPriority.LOW,
+      channelName: 'خدمة زونا تعمل حالياً',
+      channelImportance: NotificationChannelImportance.MAX,
+      priority: NotificationPriority.HIGH,
     ),
     iosNotificationOptions: const IOSNotificationOptions(showNotification: true, playSound: false),
     foregroundTaskOptions: ForegroundTaskOptions(eventAction: ForegroundTaskEventAction.repeat(5000), autoRunOnBoot: true, allowWakeLock: true, allowWifiLock: true),
@@ -134,7 +124,6 @@ class DriverHome extends StatefulWidget {
 
 class _DriverHomeState extends State<DriverHome> {
   final supabase = Supabase.instance.client;
-  final audioPlayer = AudioPlayer();
   final fln.FlutterLocalNotificationsPlugin notifications = fln.FlutterLocalNotificationsPlugin();
   InAppWebViewController? web;
   bool _isPageLoaded = false;
@@ -162,17 +151,17 @@ class _DriverHomeState extends State<DriverHome> {
 
     final androidImplementation = notifications.resolvePlatformSpecificImplementation<fln.AndroidFlutterLocalNotificationsPlugin>();
 
-    // حذف كافة القنوات السابقة للتأكد من نظافة ذاكرة النظام
-    await androidImplementation?.deleteNotificationChannel('urgent_alerts_v5');
-    await androidImplementation?.deleteNotificationChannel('urgent_alerts_v6');
-    await androidImplementation?.deleteNotificationChannel('urgent_alerts_v7');
-    await androidImplementation?.deleteNotificationChannel('urgent_alerts_v8');
+    // تنظيف شامل للقنوات القديمة v5 حتى v9
+    for (var i = 5; i <= 9; i++) {
+      await androidImplementation?.deleteNotificationChannel('urgent_alerts_v$i');
+      await androidImplementation?.deleteNotificationChannel('urgent_calls_v$i');
+    }
 
-    // إنشاء قناة جديدة تماماً باسم مختلف لضمان تفعيل الصوت
+    // إنشاء القناة v10 بإعدادات "تنبيه قصوى"
     const chan = fln.AndroidNotificationChannel(
-      'urgent_calls_v9',
-      'طلبات الرحلات الهامة',
-      description: 'إشعارات طلبات الرحلات الجديدة',
+      'emergency_channel_v10',
+      'تنبيهات الطوارئ - زونا',
+      description: 'هذه القناة مخصصة لطلبات الرحلات الهامة جداً',
       importance: fln.Importance.max,
       playSound: true,
       enableVibration: true,
@@ -211,7 +200,7 @@ class _DriverHomeState extends State<DriverHome> {
 
   void _handleFcmMessage(RemoteMessage message) async {
     Map<String, dynamic> data = Map<String, dynamic>.from(message.data);
-    await _playNotificationSound(loop: true);
+    _playNotificationSound();
     await _showLocalNotification(data);
     _showRideRequestModal(data);
     await _sendToPWA(data);
@@ -269,7 +258,7 @@ class _DriverHomeState extends State<DriverHome> {
         callback: (payload) async {
           final data = payload.newRecord;
           Map<String, dynamic> rideData = data != null ? Map<String, dynamic>.from(data) : {};
-          await _playNotificationSound(loop: true);
+          _playNotificationSound();
           await _showLocalNotification(rideData);
           _showRideRequestModal(rideData);
           await _sendToPWA(rideData);
@@ -277,13 +266,12 @@ class _DriverHomeState extends State<DriverHome> {
       )..subscribe();
   }
 
-  Future<void> _playNotificationSound({bool loop = false}) async {
+  Future<void> _playNotificationSound() async {
     try {
-      await audioPlayer.stop();
-      await audioPlayer.setReleaseMode(loop ? ReleaseMode.loop : ReleaseMode.release);
-      await audioPlayer.setSource(AssetSource('ride_request_sound.mp3'));
-      await audioPlayer.resume();
-      if (await Vibration.hasVibrator() ?? false) { loop ? Vibration.vibrate(pattern: [500, 1000], repeat: 0) : Vibration.vibrate(duration: 500); }
+      await globalAudioPlayer.stop();
+      await globalAudioPlayer.setReleaseMode(ReleaseMode.loop);
+      await globalAudioPlayer.play(AssetSource('ride_request_sound.mp3'), volume: 1.0);
+      if (await Vibration.hasVibrator() ?? false) { Vibration.vibrate(pattern: [500, 1000], repeat: 0); }
     } catch (_) {}
   }
 
@@ -292,7 +280,7 @@ class _DriverHomeState extends State<DriverHome> {
       String name = data['customer_name'] ?? 'عميل';
       String amount = data['amount']?.toString() ?? '0';
       await notifications.show(DateTime.now().millisecond, 'طلب رحلة جديد 🚗', '$name - $amount SDG',
-        const fln.NotificationDetails(android: fln.AndroidNotificationDetails('urgent_calls_v9', 'طلبات الرحلات الهامة', importance: fln.Importance.max, priority: fln.Priority.high, playSound: true, sound: fln.RawResourceAndroidNotificationSound('ride_request_sound'))),
+        const fln.NotificationDetails(android: fln.AndroidNotificationDetails('emergency_channel_v10', 'تنبيهات الطوارئ - زونا', importance: fln.Importance.max, priority: fln.Priority.high, playSound: true, sound: fln.RawResourceAndroidNotificationSound('ride_request_sound'))),
         payload: jsonEncode(data),
       );
     } catch (_) {}
@@ -315,7 +303,7 @@ class _DriverHomeState extends State<DriverHome> {
     if (web != null) await web!.evaluateJavascript(source: "if(typeof handleRideRequest === 'function') handleRideRequest(${jsonEncode(data)});");
   }
 
-  void _stopAlerts() { audioPlayer.stop(); Vibration.cancel(); }
+  void _stopAlerts() { globalAudioPlayer.stop(); Vibration.cancel(); }
 
   Future<void> _sendToPWA(Map<String, dynamic> data) async {
     if (web == null) return;
@@ -395,7 +383,7 @@ class _DriverHomeState extends State<DriverHome> {
   void dispose() {
     statusSyncTimer?.cancel();
     connectivitySubscription?.cancel();
-    audioPlayer.dispose();
+    globalAudioPlayer.dispose();
     super.dispose();
   }
 }
