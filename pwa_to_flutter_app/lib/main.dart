@@ -53,7 +53,7 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     DateTime.now().millisecond, title, body,
     const fln.NotificationDetails(
       android: fln.AndroidNotificationDetails(
-        'urgent_alerts_v8', // تم التحديث إلى v8 لضمان إعادة ضبط الصوت
+        'urgent_alerts_v8', 
         'Urgent Alerts',
         importance: fln.Importance.max,
         priority: fln.Priority.high,
@@ -160,12 +160,12 @@ class _DriverHomeState extends State<DriverHome> {
 
     final androidImplementation = notifications.resolvePlatformSpecificImplementation<fln.AndroidFlutterLocalNotificationsPlugin>();
 
-    // --- الجزء المسؤول عن حذف القنوات القديمة ---
+    // حذف كافة القنوات القديمة التي قد تسبب تعارضاً في الصوت
     await androidImplementation?.deleteNotificationChannel('urgent_alerts_v5');
     await androidImplementation?.deleteNotificationChannel('urgent_alerts_v6');
     await androidImplementation?.deleteNotificationChannel('urgent_alerts_v7');
 
-    // إنشاء القناة الجديدة v8 مع ضبط الصوت بشكل صارم
+    // إنشاء القناة الجديدة v8 بإعدادات الصوت القصوى
     const chan = fln.AndroidNotificationChannel(
       'urgent_alerts_v8',
       'Urgent Alerts',
