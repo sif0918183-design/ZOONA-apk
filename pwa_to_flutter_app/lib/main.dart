@@ -282,7 +282,7 @@ class _DriverHomeState extends State<DriverHome> {
     );
 
     const chan = fln.AndroidNotificationChannel(
-      'urgent_alerts_v5', 'Urgent Alerts',
+      'urgent_alerts_v7', 'Urgent Alerts',
       description: 'إشعارات طلبات الرحلات الجديدة',
       importance: fln.Importance.max,
       playSound: true,
@@ -391,7 +391,7 @@ class _DriverHomeState extends State<DriverHome> {
       String amount = data['amount']?.toString() ?? '0';
       await notifications.show(
         DateTime.now().millisecond, 'طلب رحلة جديد 🚗', '$customerName - $amount SDG',
-        const fln.NotificationDetails(android: fln.AndroidNotificationDetails('urgent_alerts_v5', 'Urgent Alerts', importance: fln.Importance.max, priority: fln.Priority.high, playSound: true, sound: fln.RawResourceAndroidNotificationSound('ride_request_sound'))),
+        const fln.NotificationDetails(android: fln.AndroidNotificationDetails('urgent_alerts_v7', 'Urgent Alerts', importance: fln.Importance.max, priority: fln.Priority.high, playSound: true, sound: fln.RawResourceAndroidNotificationSound('ride_request_sound'))),
         payload: jsonEncode(data),
       );
     } catch (_) {}
