@@ -49,12 +49,13 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     }
   }
 
+  // استخدام قناة V9 الجديدة كلياً هنا أيضاً
   await notifications.show(
     DateTime.now().millisecond, title, body,
     const fln.NotificationDetails(
       android: fln.AndroidNotificationDetails(
-        'urgent_alerts_v8', 
-        'Urgent Alerts',
+        'urgent_calls_v9', 
+        'طلبات الرحلات الهامة',
         importance: fln.Importance.max,
         priority: fln.Priority.high,
         fullScreenIntent: true,
@@ -62,6 +63,7 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
         sound: fln.RawResourceAndroidNotificationSound('ride_request_sound'),
         color: Color(0xFF16a34a),
         ongoing: true,
+        styleInformation: fln.BigTextStyleInformation(''),
       ),
     ),
     payload: jsonEncode(data),
@@ -160,15 +162,16 @@ class _DriverHomeState extends State<DriverHome> {
 
     final androidImplementation = notifications.resolvePlatformSpecificImplementation<fln.AndroidFlutterLocalNotificationsPlugin>();
 
-    // حذف كافة القنوات القديمة التي قد تسبب تعارضاً في الصوت
+    // حذف كافة القنوات السابقة للتأكد من نظافة ذاكرة النظام
     await androidImplementation?.deleteNotificationChannel('urgent_alerts_v5');
     await androidImplementation?.deleteNotificationChannel('urgent_alerts_v6');
     await androidImplementation?.deleteNotificationChannel('urgent_alerts_v7');
+    await androidImplementation?.deleteNotificationChannel('urgent_alerts_v8');
 
-    // إنشاء القناة الجديدة v8 بإعدادات الصوت القصوى
+    // إنشاء قناة جديدة تماماً باسم مختلف لضمان تفعيل الصوت
     const chan = fln.AndroidNotificationChannel(
-      'urgent_alerts_v8',
-      'Urgent Alerts',
+      'urgent_calls_v9',
+      'طلبات الرحلات الهامة',
       description: 'إشعارات طلبات الرحلات الجديدة',
       importance: fln.Importance.max,
       playSound: true,
@@ -289,7 +292,7 @@ class _DriverHomeState extends State<DriverHome> {
       String name = data['customer_name'] ?? 'عميل';
       String amount = data['amount']?.toString() ?? '0';
       await notifications.show(DateTime.now().millisecond, 'طلب رحلة جديد 🚗', '$name - $amount SDG',
-        const fln.NotificationDetails(android: fln.AndroidNotificationDetails('urgent_alerts_v8', 'Urgent Alerts', importance: fln.Importance.max, priority: fln.Priority.high, playSound: true, sound: fln.RawResourceAndroidNotificationSound('ride_request_sound'))),
+        const fln.NotificationDetails(android: fln.AndroidNotificationDetails('urgent_calls_v9', 'طلبات الرحلات الهامة', importance: fln.Importance.max, priority: fln.Priority.high, playSound: true, sound: fln.RawResourceAndroidNotificationSound('ride_request_sound'))),
         payload: jsonEncode(data),
       );
     } catch (_) {}
