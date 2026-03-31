@@ -49,7 +49,7 @@
         android:name="android.app.Application"
         tools:replace="android:name"
         android:icon="@mipmap/ic_launcher"
-        android:label="ترحال زونا - السائق"
+        android:label="Tracka"
         android:usesCleartextTraffic="true"
         android:theme="@style/LaunchTheme"
         android:hardwareAccelerated="true"
