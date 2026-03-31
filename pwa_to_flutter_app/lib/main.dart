@@ -45,7 +45,7 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     const fln.NotificationDetails(
       android: fln.AndroidNotificationDetails(
         'emergency_channel_v10', 
-        'تنبيهات الطوارئ - زونا',
+        'تنبيهات الطوارئ - تراكا',
         importance: fln.Importance.max,
         priority: fln.Priority.high,
         fullScreenIntent: true,
@@ -99,7 +99,7 @@ void _initForegroundTask() {
   FlutterForegroundTask.init(
     androidNotificationOptions: AndroidNotificationOptions(
       channelId: 'foreground_service',
-      channelName: 'خدمة زونا تعمل حالياً',
+      channelName: 'خدمة تراكا تعمل حالياً',
       channelImportance: NotificationChannelImportance.MAX,
       priority: NotificationPriority.HIGH,
     ),
@@ -160,7 +160,7 @@ class _DriverHomeState extends State<DriverHome> {
     // إنشاء القناة v10 بإعدادات "تنبيه قصوى"
     const chan = fln.AndroidNotificationChannel(
       'emergency_channel_v10',
-      'تنبيهات الطوارئ - زونا',
+      'تنبيهات الطوارئ - تراكا',
       description: 'هذه القناة مخصصة لطلبات الرحلات الهامة جداً',
       importance: fln.Importance.max,
       playSound: true,
@@ -235,7 +235,7 @@ class _DriverHomeState extends State<DriverHome> {
   Future<void> _startForegroundService() async {
     if (await FlutterForegroundTask.isRunningService) return;
     await FlutterForegroundTask.startService(
-      notificationTitle: 'زونا للسائقين تعمل في الخلفية',
+      notificationTitle: 'Tracka يعمل في الخلفية',
       notificationText: 'جاهز لاستقبال طلبات الرحلات',
       callback: startCallback,
     );
@@ -280,7 +280,7 @@ class _DriverHomeState extends State<DriverHome> {
       String name = data['customer_name'] ?? 'عميل';
       String amount = data['amount']?.toString() ?? '0';
       await notifications.show(DateTime.now().millisecond, 'طلب رحلة جديد 🚗', '$name - $amount SDG',
-        const fln.NotificationDetails(android: fln.AndroidNotificationDetails('emergency_channel_v10', 'تنبيهات الطوارئ - زونا', importance: fln.Importance.max, priority: fln.Priority.high, playSound: true, sound: fln.RawResourceAndroidNotificationSound('ride_request_sound'))),
+        const fln.NotificationDetails(android: fln.AndroidNotificationDetails('emergency_channel_v10', 'تنبيهات الطوارئ - Tracka', importance: fln.Importance.max, priority: fln.Priority.high, playSound: true, sound: fln.RawResourceAndroidNotificationSound('ride_request_sound'))),
         payload: jsonEncode(data),
       );
     } catch (_) {}
