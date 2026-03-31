@@ -1,4 +1,4 @@
-name: Build Tirhal Driver APK
+name: Build Tracka APK
 
 on:
   push:
