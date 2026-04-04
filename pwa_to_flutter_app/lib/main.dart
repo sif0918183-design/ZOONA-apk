@@ -18,14 +18,12 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:vibration/vibration.dart';
 import 'webview_popup.dart';
 
-// تعريف مشغل صوت عالمي لضمان الوصول إليه من الخلفية
 final AudioPlayer globalAudioPlayer = AudioPlayer();
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
   
-  // تشغيل الصوت يدوياً في الخلفية فور وصول الرسالة لضمان عدم الاعتماد على القناة فقط
   try {
     await globalAudioPlayer.setReleaseMode(ReleaseMode.loop);
     await globalAudioPlayer.play(AssetSource('ride_request_sound.mp3'), volume: 1.0);
@@ -39,7 +37,6 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   String title = message.notification?.title ?? "طلب رحلة جديد 🚗";
   String body = message.notification?.body ?? "لديك طلب رحلة جديد في انتظارك";
 
-  // استخدام قناة V10 الجديدة كلياً لكسر أي كتم سابق في النظام
   await notifications.show(
     DateTime.now().millisecond, title, body,
     const fln.NotificationDetails(
@@ -151,13 +148,11 @@ class _DriverHomeState extends State<DriverHome> {
 
     final androidImplementation = notifications.resolvePlatformSpecificImplementation<fln.AndroidFlutterLocalNotificationsPlugin>();
 
-    // تنظيف شامل للقنوات القديمة v5 حتى v9
     for (var i = 5; i <= 9; i++) {
       await androidImplementation?.deleteNotificationChannel('urgent_alerts_v$i');
       await androidImplementation?.deleteNotificationChannel('urgent_calls_v$i');
     }
 
-    // إنشاء القناة v10 بإعدادات "تنبيه قصوى"
     const chan = fln.AndroidNotificationChannel(
       'emergency_channel_v10',
       'تنبيهات الطوارئ - تراكا',
@@ -303,7 +298,11 @@ class _DriverHomeState extends State<DriverHome> {
     if (web != null) await web!.evaluateJavascript(source: "if(typeof handleRideRequest === 'function') handleRideRequest(${jsonEncode(data)});");
   }
 
-  void _stopAlerts() { globalAudioPlayer.stop(); Vibration.cancel(); }
+  void _stopAlerts() { 
+    globalAudioPlayer.stop(); 
+    Vibration.cancel(); 
+    print("🔊 تم إيقاف التنبيهات الصوتية والاهتزاز");
+  }
 
   Future<void> _sendToPWA(Map<String, dynamic> data) async {
     if (web == null) return;
@@ -349,6 +348,11 @@ class _DriverHomeState extends State<DriverHome> {
             onWebViewCreated: (controller) {
               web = controller;
               controller.addJavaScriptHandler(handlerName: 'driverLogin', callback: (args) { if (args.isNotEmpty && args[0] is Map) _saveDriver(args[0]['driverId'].toString()); });
+              
+              // ✅ إضافة معالج إيقاف التنبيهات من WebView
+              controller.addJavaScriptHandler(handlerName: 'stopAlerts', callback: (args) {
+                _stopAlerts();
+              });
             },
             onGeolocationPermissionsShowPrompt: (controller, origin) async => GeolocationPermissionShowPromptResponse(origin: origin, allow: true, retain: true),
             onLoadStop: (controller, url) async {
