@@ -36,7 +36,7 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await notifications.initialize(const fln.InitializationSettings(android: android));
 
   Map<String, dynamic> data = message.data;
-  String title = message.notification?.title ?? "طلب رحلة جديد 🚗";
+  String title = message.notification?.title ?? "طلب رحلة جديد ";
   String body = message.notification?.body ?? "لديك طلب رحلة جديد في انتظارك";
 
   // استخدام قناة V10 الجديدة كلياً لكسر أي كتم سابق في النظام
@@ -279,7 +279,7 @@ class _DriverHomeState extends State<DriverHome> {
     try {
       String name = data['customer_name'] ?? 'عميل';
       String amount = data['amount']?.toString() ?? '0';
-      await notifications.show(DateTime.now().millisecond, 'طلب رحلة جديد 🚗', '$name - $amount SDG',
+      await notifications.show(DateTime.now().millisecond, 'طلب رحلة جديد ', '$name - $amount SDG',
         const fln.NotificationDetails(android: fln.AndroidNotificationDetails('emergency_channel_v10', 'تنبيهات الطوارئ - Tracka', importance: fln.Importance.max, priority: fln.Priority.high, playSound: true, sound: fln.RawResourceAndroidNotificationSound('ride_request_sound'))),
         payload: jsonEncode(data),
       );
@@ -303,12 +303,7 @@ class _DriverHomeState extends State<DriverHome> {
     if (web != null) await web!.evaluateJavascript(source: "if(typeof handleRideRequest === 'function') handleRideRequest(${jsonEncode(data)});");
   }
 
-  void _stopAlerts() { 
-    globalAudioPlayer.stop(); 
-    globalAudioPlayer.release(); // تحرير المورد لضمان القتل الفوري للصوت
-    Vibration.cancel(); 
-    print("🔊 تمت عملية إيقاف الصوت والاهتزاز بنجاح");
-  }
+  void _stopAlerts() { globalAudioPlayer.stop(); Vibration.cancel(); }
 
   Future<void> _sendToPWA(Map<String, dynamic> data) async {
     if (web == null) return;
@@ -354,12 +349,6 @@ class _DriverHomeState extends State<DriverHome> {
             onWebViewCreated: (controller) {
               web = controller;
               controller.addJavaScriptHandler(handlerName: 'driverLogin', callback: (args) { if (args.isNotEmpty && args[0] is Map) _saveDriver(args[0]['driverId'].toString()); });
-              
-              // ✅ معالج إيقاف الصوت المستدعى من الـ JavaScript
-              controller.addJavaScriptHandler(handlerName: 'stopAlerts', callback: (args) {
-                _stopAlerts();
-                return {'success': true}; 
-              });
             },
             onGeolocationPermissionsShowPrompt: (controller, origin) async => GeolocationPermissionShowPromptResponse(origin: origin, allow: true, retain: true),
             onLoadStop: (controller, url) async {
