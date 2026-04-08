@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>طلب رحلة جديد - تراكا</title>
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&display=swap" rel="stylesheet">
+    <script type="module" src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"></script>
+    <script nomodule src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <link rel="stylesheet" href="../shared/theme.css">
+
+    <style>
+        :root {
+            --primary: #008B5E;
+            --primary-dark: #005F41;
+            --danger: #ef4444;
+            --radius: 16px;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Tajawal', sans-serif;
+            background: #F3F4F6; /* الخلفية الفاتحة حسب الثيم الجديد */
+            height: 100vh;
+            color: #111827;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .full-screen-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 16px;
+        }
+
+        /* تعديل الهيدر ليظهر اللوقو بشكل احترافي */
+        .app-header {
+            background: linear-gradient(180deg, #008B5E 0%, #005F41 100%);
+            margin: -16px -16px 16px -16px;
+            padding: 10px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .logo-img {
+            height: 42px !important;
+            width: auto;
+            object-fit: contain;
+        }
+
+        .countdown-container {
+            background: rgba(239, 68, 68, 0.1);
+            border: 2px solid var(--danger);
+            border-radius: var(--radius);
+            padding: 10px;
+            text-align: center;
+            margin-bottom: 15px;
+        }
+
+        .timer-value {
+            font-size: 38px;
+            font-weight: 900;
+            color: var(--danger);
+        }
+
+        .ride-card {
+            background: white;
+            border: 1px solid #E5E7EB;
+            border-radius: var(--radius);
+            padding: 15px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+
+        .detail-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #F3F4F6;
+        }
+
+        .detail-icon { font-size: 22px; color: var(--primary); }
+        .detail-label { font-size: 12px; color: #6B7280; }
+        .detail-value { font-size: 16px; font-weight: 700; color: #111827; }
+
+        .price-box {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            padding: 15px;
+            border-radius: var(--radius);
+            text-align: center;
+            color: white;
+            margin-top: auto;
+        }
+
+        .price-value { font-size: 30px; font-weight: 900; }
+
+        .action-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .btn {
+            height: 58px;
+            border-radius: var(--radius);
+            border: none;
+            font-size: 20px;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            font-family: 'Tajawal', sans-serif;
+        }
+
+        .btn-accept {
+            background: var(--primary);
+            color: white;
+            box-shadow: 0 4px 15px rgba(0, 139, 94, 0.3);
+        }
+
+        .btn-decline {
+            background: #E5E7EB;
+            color: #4B5563;
+        }
+
+        #notification {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            padding: 15px;
+            border-radius: 12px;
+            display: none;
+            z-index: 1000;
+            text-align: center;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="full-screen-container">
+        <header class="app-header">
+            <img src="../shared/logo.png" class="logo-img" alt="Tracka">
+        </header>
+
+        <div class="countdown-container">
+            <div style="font-size: 14px;">الوقت المتبقي للرد</div>
+            <div class="timer-value" id="countdown">60</div>
+        </div>
+
+        <div class="ride-card">
+            <div class="detail-row">
+                <div class="detail-icon"><ion-icon name="person-circle-outline"></ion-icon></div>
+                <div class="detail-info">
+                    <div class="detail-label">العميل</div>
+                    <div class="detail-value" id="customer-name">جاري التحميل...</div>
+                </div>
+            </div>
+
+            <div class="detail-row">
+                <div class="detail-icon"><ion-icon name="location-outline"></ion-icon></div>
+                <div class="detail-info">
+                    <div class="detail-label">موقع الانطلاق</div>
+                    <div class="detail-value" id="pickup-location">جاري التحديد...</div>
+                </div>
+            </div>
+
+            <div class="price-box">
+                <div class="price-label">الأجرة المقدرة</div>
+                <div class="price-value"><span id="amount">0</span> <small>SDG</small></div>
+            </div>
+        </div>
+
+        <div class="action-buttons">
+            <button class="btn btn-accept" onclick="handleAccept()" id="accept-btn" disabled>
+                قبول الرحلة
+            </button>
+            <button class="btn btn-decline" onclick="handleDecline()">
+                رفض
+            </button>
+        </div>
+    </div>
+
+    <div id="notification"></div>
+
+    <script>
+        const SB_URL = 'https://zsmlyiygjagmhnglrhoa.supabase.co';
+        const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpzbWx5aXlnamFnbWhuZ2xyaG9hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU5NDc3NjMsImV4cCI6MjA4MTUyMzc2M30.QviVinAng-ILq0umvI5UZCFEvNpP3nI0kW_hSaXxNps';
+        const tarhalDB = supabase.createClient(SB_URL, SB_KEY);
+
+        let currentRideId = null;
+        let countdownValue = 60;
+        let timerInterval = null;
+
+        // ✅ وظيفة إيقاف الصوت في تطبيق فلاتر
+        function stopFlutterAlerts() {
+            if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
+                window.flutter_inappwebview.callHandler('stopAlerts');
+            }
+        }
+
+        window.handleRideRequest = function(data) {
+            console.log('Data received from Flutter:', data);
+            if (data) {
+                currentRideId = data.ride_id || data.rideId;
+                updateUI(data);
+                document.getElementById('accept-btn').disabled = false;
+            }
+        };
+
+        window.handleIncomingRide = window.handleRideRequest;
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            currentRideId = urlParams.get('id') || urlParams.get('rideId') || urlParams.get('ride_id');
+
+            if (currentRideId) {
+                fetchRideDetails(currentRideId);
+            }
+            startTimer();
+        });
+
+        async function fetchRideDetails(rideId) {
+            try {
+                const { data, error } = await tarhalDB
+                    .from('rides')
+                    .select('*')
+                    .eq('id', rideId)
+                    .single();
+
+                if (data) {
+                    updateUI({
+                        customer_name: data.passenger_name || data.customer_name,
+                        amount: data.amount,
+                        pickup_address: data.pickup_address
+                    });
+                    document.getElementById('accept-btn').disabled = false;
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        function updateUI(data) {
+            if (data.customer_name) document.getElementById('customer-name').textContent = data.customer_name;
+            if (data.amount) document.getElementById('amount').textContent = data.amount;
+            if (data.pickup_address) document.getElementById('pickup-location').textContent = data.pickup_address;
+        }
+
+        function startTimer() {
+            timerInterval = setInterval(() => {
+                countdownValue--;
+                document.getElementById('countdown').textContent = countdownValue;
+                if (countdownValue <= 0) { clearInterval(timerInterval); handleDecline(); }
+            }, 1000);
+        }
+
+        async function handleAccept() {
+            if (!currentRideId) return;
+
+            // ✅ إيقاف الرنين فوراً عند الضغط
+            stopFlutterAlerts();
+
+            document.getElementById('accept-btn').disabled = true;
+            document.getElementById('accept-btn').textContent = "جاري القبول...";
+
+            try {
+                const { error } = await tarhalDB
+                    .from('rides')
+                    .update({ status: 'accepted', accepted_at: new Date().toISOString() })
+                    .eq('id', currentRideId);
+
+                if (!error) {
+                    showToast('✅ تم القبول', 'success');
+                    window.location.replace(`active-ride.html?rideId=${currentRideId}`);
+                }
+            } catch (err) {
+                showToast('خطأ في القبول', 'error');
+                document.getElementById('accept-btn').disabled = false;
+                document.getElementById('accept-btn').textContent = "قبول الرحلة";
+            }
+        }
+
+        function handleDecline() {
+            // ✅ إيقاف الرنين عند الرفض أيضاً
+            stopFlutterAlerts();
+            window.location.replace('index.html');
+        }
+
+        function showToast(message, type) {
+            const n = document.getElementById('notification');
+            n.textContent = message;
+            n.style.display = 'block';
+            n.style.background = type === 'success' ? '#D1FAE5' : '#FEE2E2';
+            n.style.color = type === 'success' ? '#065F46' : '#991B1B';
+            setTimeout(() => n.style.display = 'none', 3000);
+        }
+    </script>
+</body>
+</html>

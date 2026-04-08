@@ -18,8 +18,8 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:vibration/vibration.dart';
 import 'webview_popup.dart';
 
-// تعريف مشغل صوت عالمي لضمان الوصول إليه من الخلفية
-final AudioPlayer globalAudioPlayer = AudioPlayer();
+// تعريف مشغل صوت عالمي لضمان الوصول إليه من الخلفية بمعرف ثابت
+final AudioPlayer globalAudioPlayer = AudioPlayer(playerId: 'global_driver_player');
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -183,6 +183,7 @@ class _DriverHomeState extends State<DriverHome> {
   }
 
   void _handleNotificationClick(Map<String, dynamic> data) {
+    _stopAlerts();
     dynamic rideId = data['ride_id'] ?? data['rideId'];
     if (rideId == null && data['payload'] != null) {
       try {
@@ -349,11 +350,19 @@ class _DriverHomeState extends State<DriverHome> {
             onWebViewCreated: (controller) {
               web = controller;
               controller.addJavaScriptHandler(handlerName: 'driverLogin', callback: (args) { if (args.isNotEmpty && args[0] is Map) _saveDriver(args[0]['driverId'].toString()); });
+              controller.addJavaScriptHandler(handlerName: 'stopAlerts', callback: (args) { _stopAlerts(); });
             },
             onGeolocationPermissionsShowPrompt: (controller, origin) async => GeolocationPermissionShowPromptResponse(origin: origin, allow: true, retain: true),
             onLoadStop: (controller, url) async {
               _isPageLoaded = true;
-              if (url != null) { final prefs = await SharedPreferences.getInstance(); await prefs.setString('last_url', url.toString()); }
+              if (url != null) {
+                final prefs = await SharedPreferences.getInstance();
+                await prefs.setString('last_url', url.toString());
+                // إيقاف التنبيهات تلقائياً إذا انتقل السائق بعيداً عن صفحة القبول
+                if (!url.toString().contains('accept-ride.html')) {
+                  _stopAlerts();
+                }
+              }
               if (fcmToken != null) _sendTokenToPWA(fcmToken!);
               _startDriverSync();
             },
