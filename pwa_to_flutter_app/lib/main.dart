@@ -25,7 +25,6 @@ final AudioPlayer globalAudioPlayer = AudioPlayer(playerId: 'global_driver_playe
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
   
-  // تشغيل الصوت يدوياً في الخلفية فور وصول الرسالة لضمان عدم الاعتماد على القناة فقط
   try {
     await globalAudioPlayer.setReleaseMode(ReleaseMode.loop);
     await globalAudioPlayer.play(AssetSource('ride_request_sound.mp3'), volume: 1.0);
@@ -39,7 +38,6 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   String title = message.notification?.title ?? "طلب رحلة جديد ";
   String body = message.notification?.body ?? "لديك طلب رحلة جديد في انتظارك";
 
-  // استخدام قناة V10 الجديدة كلياً لكسر أي كتم سابق في النظام
   await notifications.show(
     DateTime.now().millisecond, title, body,
     const fln.NotificationDetails(
@@ -150,14 +148,6 @@ class _DriverHomeState extends State<DriverHome> {
     );
 
     final androidImplementation = notifications.resolvePlatformSpecificImplementation<fln.AndroidFlutterLocalNotificationsPlugin>();
-
-    // تنظيف شامل للقنوات القديمة v5 حتى v9
-    for (var i = 5; i <= 9; i++) {
-      await androidImplementation?.deleteNotificationChannel('urgent_alerts_v$i');
-      await androidImplementation?.deleteNotificationChannel('urgent_calls_v$i');
-    }
-
-    // إنشاء القناة v10 بإعدادات "تنبيه قصوى"
     const chan = fln.AndroidNotificationChannel(
       'emergency_channel_v10',
       'تنبيهات الطوارئ - تراكا',
@@ -167,7 +157,6 @@ class _DriverHomeState extends State<DriverHome> {
       enableVibration: true,
       sound: fln.RawResourceAndroidNotificationSound('ride_request_sound'),
     );
-    
     await androidImplementation?.createNotificationChannel(chan);
   }
 
@@ -185,17 +174,21 @@ class _DriverHomeState extends State<DriverHome> {
   void _handleNotificationClick(Map<String, dynamic> data) {
     _stopAlerts();
     dynamic rideId = data['ride_id'] ?? data['rideId'];
+    
     if (rideId == null && data['payload'] != null) {
       try {
-        final payload = data['payload'];
-        final decoded = payload is Map ? payload : jsonDecode(payload);
-        rideId = decoded['ride_id'] ?? decoded['rideId'];
+        final payloadData = data['payload'] is String ? jsonDecode(data['payload']) : data['payload'];
+        rideId = payloadData['ride_id'] ?? payloadData['rideId'];
       } catch (_) {}
     }
+    
     if (rideId != null) {
       final url = "https://driver.zoonasd.com/driver_app/accept-ride.html?id=$rideId";
-      if (web != null) web!.loadUrl(urlRequest: URLRequest(url: WebUri(url)));
-      else setState(() => _pendingUrl = url);
+      if (web != null) {
+        web!.loadUrl(urlRequest: URLRequest(url: WebUri(url)));
+      } else {
+        setState(() => _pendingUrl = url);
+      }
     }
   }
 
@@ -249,6 +242,7 @@ class _DriverHomeState extends State<DriverHome> {
   }
 
   void _listenForRides() {
+    if (driverId == null) return;
     channel?.unsubscribe();
     channel = supabase.channel('ride_requests_$driverId')
       ..onPostgresChanges(
@@ -351,15 +345,20 @@ class _DriverHomeState extends State<DriverHome> {
               web = controller;
               controller.addJavaScriptHandler(handlerName: 'driverLogin', callback: (args) { if (args.isNotEmpty && args[0] is Map) _saveDriver(args[0]['driverId'].toString()); });
               controller.addJavaScriptHandler(handlerName: 'stopAlerts', callback: (args) { _stopAlerts(); });
+              
+              if (_pendingUrl != null) {
+                controller.loadUrl(urlRequest: URLRequest(url: WebUri(_pendingUrl!)));
+              }
             },
             onGeolocationPermissionsShowPrompt: (controller, origin) async => GeolocationPermissionShowPromptResponse(origin: origin, allow: true, retain: true),
             onLoadStop: (controller, url) async {
               _isPageLoaded = true;
               if (url != null) {
+                final String currentUrl = url.toString();
                 final prefs = await SharedPreferences.getInstance();
-                await prefs.setString('last_url', url.toString());
-                // إيقاف التنبيهات تلقائياً إذا انتقل السائق بعيداً عن صفحة القبول
-                if (!url.toString().contains('accept-ride.html')) {
+                await prefs.setString('last_url', currentUrl);
+                
+                if (!currentUrl.contains('accept-ride.html')) {
                   _stopAlerts();
                 }
               }
