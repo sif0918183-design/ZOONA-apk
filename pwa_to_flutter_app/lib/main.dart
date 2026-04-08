@@ -24,11 +24,10 @@ final AudioPlayer globalAudioPlayer = AudioPlayer(playerId: 'global_driver_playe
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
-  
-  try {
-    await globalAudioPlayer.setReleaseMode(ReleaseMode.loop);
-    await globalAudioPlayer.play(AssetSource('ride_request_sound.mp3'), volume: 1.0);
-  } catch (e) {}
+
+  // ملاحظة: لا نشغّل globalAudioPlayer هنا لأن هذا Handler يعمل في Dart isolate
+  // منفصل تماماً عن التطبيق الرئيسي، مما يعني أن stop() في التطبيق الرئيسي
+  // لن يصل إلى native player الذي أُنشئ هنا. صوت الإشعار نفسه كافٍ للتنبيه.
 
   final fln.FlutterLocalNotificationsPlugin notifications = fln.FlutterLocalNotificationsPlugin();
   const android = fln.AndroidInitializationSettings('@mipmap/ic_launcher');
@@ -298,7 +297,14 @@ class _DriverHomeState extends State<DriverHome> {
     if (web != null) await web!.evaluateJavascript(source: "if(typeof handleRideRequest === 'function') handleRideRequest(${jsonEncode(data)});");
   }
 
-  void _stopAlerts() { globalAudioPlayer.stop(); Vibration.cancel(); }
+  void _stopAlerts() {
+    // إيقاف مشغل الصوت الرئيسي
+    globalAudioPlayer.stop();
+    // إيقاف الاهتزاز
+    Vibration.cancel();
+    // إلغاء جميع الإشعارات النشطة لوقف أي صوت إشعار لا يزال يعمل
+    notifications.cancelAll();
+  }
 
   Future<void> _sendToPWA(Map<String, dynamic> data) async {
     if (web == null) return;
