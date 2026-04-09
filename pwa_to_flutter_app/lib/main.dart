@@ -18,42 +18,31 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:vibration/vibration.dart';
 import 'webview_popup.dart';
 
-// معرّف ثابت لإشعار طلب الرحلة — يضمن أن كل إشعار جديد يحلّ محل السابق
-const int kRideNotificationId = 1001;
-
-// مشغل الصوت العالمي — يُستخدم فقط في الـ main isolate حتى يمكن إيقافه
+// تعريف مشغل صوت عالمي لضمان الوصول إليه من الخلفية بمعرف ثابت
 final AudioPlayer globalAudioPlayer = AudioPlayer(playerId: 'global_driver_player');
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
-
-  // نحفظ ride_id في SharedPreferences حتى يشغّل التطبيق الصوت بنفسه عند الفتح
-  // (لا نشغّل الصوت هنا لأن هذا الـ handler يعمل في Dart isolate منفصل)
+  
   try {
-    final prefs = await SharedPreferences.getInstance();
-    final rideId = message.data['ride_id'] ?? message.data['rideId'] ?? '';
-    if (rideId.toString().isNotEmpty) {
-      await prefs.setString('pending_ride_id', rideId.toString());
-    }
-    await prefs.setString('pending_ride_data', jsonEncode(message.data));
-  } catch (_) {}
+    await globalAudioPlayer.setReleaseMode(ReleaseMode.loop);
+    await globalAudioPlayer.play(AssetSource('ride_request_sound.mp3'), volume: 1.0);
+  } catch (e) {}
 
   final fln.FlutterLocalNotificationsPlugin notifications = fln.FlutterLocalNotificationsPlugin();
   const android = fln.AndroidInitializationSettings('@mipmap/ic_launcher');
   await notifications.initialize(const fln.InitializationSettings(android: android));
 
   Map<String, dynamic> data = message.data;
-  String title = message.notification?.title ?? "طلب رحلة جديد";
+  String title = message.notification?.title ?? "طلب رحلة جديد ";
   String body = message.notification?.body ?? "لديك طلب رحلة جديد في انتظارك";
 
-  // استخدام معرّف ثابت (kRideNotificationId) بدلاً من عشوائي
-  // → كل إشعار جديد يحلّ محل القديم ولا يتراكم
   await notifications.show(
-    kRideNotificationId, title, body,
+    DateTime.now().millisecond, title, body,
     const fln.NotificationDetails(
       android: fln.AndroidNotificationDetails(
-        'emergency_channel_v10',
+        'emergency_channel_v10', 
         'تنبيهات الطوارئ - تراكا',
         importance: fln.Importance.max,
         priority: fln.Priority.high,
@@ -63,7 +52,6 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
         enableVibration: true,
         channelShowBadge: true,
         visibility: fln.NotificationVisibility.public,
-        onlyAlertOnce: true,
       ),
     ),
     payload: jsonEncode(data),
@@ -147,23 +135,16 @@ class _DriverHomeState extends State<DriverHome> {
   @override
   void initState() {
     super.initState();
-    // نُهيئ الإشعارات أولاً ثم نتحقق من إشعار الإطلاق قبل أي شيء آخر
-    _initNotificationsAndCheckLaunch().then((_) {
-      _initFirebaseMessaging();
-      _restoreDriver();
-      _initConnectivity();
-    });
+    _initNotifications();
+    _initFirebaseMessaging();
+    _restoreDriver();
+    _initConnectivity();
   }
 
-  Future<void> _initNotificationsAndCheckLaunch() async {
+  Future<void> _initNotifications() async {
     const androidInit = fln.AndroidInitializationSettings('@mipmap/ic_launcher');
-    await notifications.initialize(
-      const fln.InitializationSettings(android: androidInit),
-      onDidReceiveNotificationResponse: (details) {
-        if (details.payload != null) {
-          try { _handleNotificationClick(jsonDecode(details.payload!)); } catch (_) {}
-        }
-      },
+    await notifications.initialize(const fln.InitializationSettings(android: androidInit),
+      onDidReceiveNotificationResponse: (details) { if (details.payload != null) _handleNotificationClick(jsonDecode(details.payload!)); }
     );
 
     final androidImplementation = notifications.resolvePlatformSpecificImplementation<fln.AndroidFlutterLocalNotificationsPlugin>();
@@ -177,35 +158,6 @@ class _DriverHomeState extends State<DriverHome> {
       sound: fln.RawResourceAndroidNotificationSound('ride_request_sound'),
     );
     await androidImplementation?.createNotificationChannel(chan);
-
-    // تحقق من هل التطبيق فُتح بالضغط على إشعار (حالة التطبيق المُغلَق)
-    // هذا هو المسار الصحيح لمعالجة نقرة الإشعار عند الإطلاق من الخلفية
-    final launchDetails = await notifications.getNotificationAppLaunchDetails();
-    if (launchDetails?.didNotificationLaunchApp == true) {
-      final payload = launchDetails?.notificationResponse?.payload;
-      if (payload != null) {
-        try { _handleNotificationClick(jsonDecode(payload)); } catch (_) {}
-        return; // لا نحتاج فحص pending_ride_id إذا عندنا payload
-      }
-    }
-
-    // في حال فشل الـ payload، نتحقق من pending_ride_id المحفوظ في الـ background handler
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final pendingRideId = prefs.getString('pending_ride_id');
-      if (pendingRideId != null && pendingRideId.isNotEmpty) {
-        final pendingDataStr = prefs.getString('pending_ride_data');
-        Map<String, dynamic> data = {};
-        if (pendingDataStr != null) {
-          try { data = jsonDecode(pendingDataStr); } catch (_) {}
-        }
-        data['ride_id'] = pendingRideId;
-        _handleNotificationClick(data);
-        // نمسح البيانات المعلّقة بعد معالجتها
-        await prefs.remove('pending_ride_id');
-        await prefs.remove('pending_ride_data');
-      }
-    } catch (_) {}
   }
 
   Future<void> _initFirebaseMessaging() async {
@@ -214,28 +166,23 @@ class _DriverHomeState extends State<DriverHome> {
     fcmToken = await messaging.getToken();
     if (fcmToken != null) _sendTokenToPWA(fcmToken!);
     messaging.onTokenRefresh.listen((newToken) { fcmToken = newToken; _sendTokenToPWA(newToken); });
-    // حالة: التطبيق في الخلفية والمستخدم يضغط إشعار Firebase (ليس flutter_local_notifications)
     FirebaseMessaging.onMessageOpenedApp.listen((message) => _handleNotificationClick(message.data));
     messaging.getInitialMessage().then((message) { if (message != null) _handleNotificationClick(message.data); });
-    // حالة: التطبيق في المقدمة ويصل إشعار
     FirebaseMessaging.onMessage.listen((message) => _handleFcmMessage(message));
   }
 
-  // معالج النقر على الإشعار — يشغّل الصوت في main isolate ثم يفتح صفحة القبول
   void _handleNotificationClick(Map<String, dynamic> data) {
+    _stopAlerts();
     dynamic rideId = data['ride_id'] ?? data['rideId'];
-
+    
     if (rideId == null && data['payload'] != null) {
       try {
         final payloadData = data['payload'] is String ? jsonDecode(data['payload']) : data['payload'];
         rideId = payloadData['ride_id'] ?? payloadData['rideId'];
       } catch (_) {}
     }
-
+    
     if (rideId != null) {
-      // نشغّل الصوت هنا في الـ main isolate حتى يمكن إيقافه عند الضغط
-      _playNotificationSound();
-
       final url = "https://driver.zoonasd.com/driver_app/accept-ride.html?id=$rideId";
       if (web != null) {
         web!.loadUrl(urlRequest: URLRequest(url: WebUri(url)));
@@ -263,15 +210,8 @@ class _DriverHomeState extends State<DriverHome> {
     final prefs = await SharedPreferences.getInstance();
     driverId = prefs.getString('driver_id');
     final lastUrl = prefs.getString('last_url');
-
-    // لا نعيد فتح صفحة accept-ride.html من جلسة سابقة — كانت لطلب قديم
-    final shouldRestore = _pendingUrl == null &&
-        lastUrl != null &&
-        lastUrl.isNotEmpty &&
-        !lastUrl.contains('accept-ride.html');
-
-    if (shouldRestore) {
-      if (web != null) web!.loadUrl(urlRequest: URLRequest(url: WebUri(lastUrl!)));
+    if (_pendingUrl == null && lastUrl != null && lastUrl.isNotEmpty) {
+      if (web != null) web!.loadUrl(urlRequest: URLRequest(url: WebUri(lastUrl)));
       else setState(() => _pendingUrl = lastUrl);
     }
     if (driverId != null) { _listenForRides(); _startStatusSyncWithPWA(); _startForegroundService(); }
@@ -334,22 +274,8 @@ class _DriverHomeState extends State<DriverHome> {
     try {
       String name = data['customer_name'] ?? 'عميل';
       String amount = data['amount']?.toString() ?? '0';
-      // معرّف ثابت → إشعار جديد يحلّ محل القديم ولا يتكرر
-      await notifications.show(
-        kRideNotificationId,
-        'طلب رحلة جديد',
-        '$name - $amount SDG',
-        const fln.NotificationDetails(
-          android: fln.AndroidNotificationDetails(
-            'emergency_channel_v10',
-            'تنبيهات الطوارئ - تراكا',
-            importance: fln.Importance.max,
-            priority: fln.Priority.high,
-            playSound: true,
-            sound: fln.RawResourceAndroidNotificationSound('ride_request_sound'),
-            onlyAlertOnce: true,
-          ),
-        ),
+      await notifications.show(DateTime.now().millisecond, 'طلب رحلة جديد ', '$name - $amount SDG',
+        const fln.NotificationDetails(android: fln.AndroidNotificationDetails('emergency_channel_v10', 'تنبيهات الطوارئ - Tracka', importance: fln.Importance.max, priority: fln.Priority.high, playSound: true, sound: fln.RawResourceAndroidNotificationSound('ride_request_sound'))),
         payload: jsonEncode(data),
       );
     } catch (_) {}
@@ -372,14 +298,7 @@ class _DriverHomeState extends State<DriverHome> {
     if (web != null) await web!.evaluateJavascript(source: "if(typeof handleRideRequest === 'function') handleRideRequest(${jsonEncode(data)});");
   }
 
-  void _stopAlerts() {
-    // إيقاف مشغّل الصوت (يعمل دائماً في main isolate → يُوقَف بشكل موثوق)
-    globalAudioPlayer.stop();
-    // إيقاف الاهتزاز
-    Vibration.cancel();
-    // إلغاء الإشعار النشط من لوح الإشعارات
-    notifications.cancel(kRideNotificationId);
-  }
+  void _stopAlerts() { globalAudioPlayer.stop(); Vibration.cancel(); }
 
   Future<void> _sendToPWA(Map<String, dynamic> data) async {
     if (web == null) return;
@@ -426,7 +345,7 @@ class _DriverHomeState extends State<DriverHome> {
               web = controller;
               controller.addJavaScriptHandler(handlerName: 'driverLogin', callback: (args) { if (args.isNotEmpty && args[0] is Map) _saveDriver(args[0]['driverId'].toString()); });
               controller.addJavaScriptHandler(handlerName: 'stopAlerts', callback: (args) { _stopAlerts(); });
-
+              
               if (_pendingUrl != null) {
                 controller.loadUrl(urlRequest: URLRequest(url: WebUri(_pendingUrl!)));
               }
@@ -437,9 +356,9 @@ class _DriverHomeState extends State<DriverHome> {
               if (url != null) {
                 final String currentUrl = url.toString();
                 final prefs = await SharedPreferences.getInstance();
-                // لا نحفظ accept-ride.html كآخر صفحة — لأنها مؤقتة لطلب رحلة
+                await prefs.setString('last_url', currentUrl);
+                
                 if (!currentUrl.contains('accept-ride.html')) {
-                  await prefs.setString('last_url', currentUrl);
                   _stopAlerts();
                 }
               }
