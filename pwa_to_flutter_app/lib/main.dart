@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:audioplayers/audioplayers.dart';
@@ -18,29 +19,50 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:vibration/vibration.dart';
 import 'webview_popup.dart';
 
-// تعريف مشغل صوت عالمي لضمان الوصول إليه من الخلفية بمعرف ثابت
-final AudioPlayer globalAudioPlayer = AudioPlayer(playerId: 'global_driver_player');
+String? _extractRideId(Map<String, dynamic> data) {
+  dynamic rideId = data['ride_id'] ?? data['rideId'];
+  if (rideId == null && data['payload'] != null) {
+    try {
+      final payloadData = data['payload'] is String ? jsonDecode(data['payload']) : data['payload'];
+      rideId = payloadData['ride_id'] ?? payloadData['rideId'];
+    } catch (_) {}
+  }
+  return rideId?.toString();
+}
+
+Future<bool> _isDuplicateRide(String? rideId) async {
+  if (rideId == null) return false;
+  final prefs = await SharedPreferences.getInstance();
+  final String key = 'handled_ride_$rideId';
+  final lastHandled = prefs.getInt(key);
+  final now = DateTime.now().millisecondsSinceEpoch;
+
+  if (lastHandled != null && (now - lastHandled) < 300000) { // 5 minutes
+    return true;
+  }
+
+  await prefs.setInt(key, now);
+  return false;
+}
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
   
-  try {
-    await globalAudioPlayer.setReleaseMode(ReleaseMode.loop);
-    await globalAudioPlayer.play(AssetSource('ride_request_sound.mp3'), volume: 1.0);
-  } catch (e) {}
+  Map<String, dynamic> data = message.data;
+  String? rideId = _extractRideId(data);
+  if (await _isDuplicateRide(rideId)) return;
 
   final fln.FlutterLocalNotificationsPlugin notifications = fln.FlutterLocalNotificationsPlugin();
   const android = fln.AndroidInitializationSettings('@mipmap/ic_launcher');
   await notifications.initialize(const fln.InitializationSettings(android: android));
 
-  Map<String, dynamic> data = message.data;
   String title = message.notification?.title ?? "طلب رحلة جديد ";
   String body = message.notification?.body ?? "لديك طلب رحلة جديد في انتظارك";
 
   await notifications.show(
-    DateTime.now().millisecond, title, body,
-    const fln.NotificationDetails(
+    rideId?.hashCode ?? DateTime.now().millisecond, title, body,
+    fln.NotificationDetails(
       android: fln.AndroidNotificationDetails(
         'emergency_channel_v10', 
         'تنبيهات الطوارئ - تراكا',
@@ -48,7 +70,8 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
         priority: fln.Priority.high,
         fullScreenIntent: true,
         playSound: true,
-        sound: fln.RawResourceAndroidNotificationSound('ride_request_sound'),
+        additionalFlags: Int32List.fromList([4]), // FLAG_INSISTENT = 4
+        sound: const fln.RawResourceAndroidNotificationSound('ride_request_sound'),
         enableVibration: true,
         channelShowBadge: true,
         visibility: fln.NotificationVisibility.public,
@@ -194,7 +217,9 @@ class _DriverHomeState extends State<DriverHome> {
 
   void _handleFcmMessage(RemoteMessage message) async {
     Map<String, dynamic> data = Map<String, dynamic>.from(message.data);
-    _playNotificationSound();
+    String? rideId = _extractRideId(data);
+    if (await _isDuplicateRide(rideId)) return;
+
     await _showLocalNotification(data);
     _showRideRequestModal(data);
     await _sendToPWA(data);
@@ -253,7 +278,9 @@ class _DriverHomeState extends State<DriverHome> {
         callback: (payload) async {
           final data = payload.newRecord;
           Map<String, dynamic> rideData = data != null ? Map<String, dynamic>.from(data) : {};
-          _playNotificationSound();
+          String? rideId = _extractRideId(rideData);
+          if (await _isDuplicateRide(rideId)) return;
+
           await _showLocalNotification(rideData);
           _showRideRequestModal(rideData);
           await _sendToPWA(rideData);
@@ -261,23 +288,30 @@ class _DriverHomeState extends State<DriverHome> {
       )..subscribe();
   }
 
-  Future<void> _playNotificationSound() async {
-    try {
-      await globalAudioPlayer.stop();
-      await globalAudioPlayer.setReleaseMode(ReleaseMode.loop);
-      await globalAudioPlayer.play(AssetSource('ride_request_sound.mp3'), volume: 1.0);
-      if (await Vibration.hasVibrator() ?? false) { Vibration.vibrate(pattern: [500, 1000], repeat: 0); }
-    } catch (_) {}
-  }
-
   Future<void> _showLocalNotification(Map<String, dynamic> data) async {
     try {
       String name = data['customer_name'] ?? 'عميل';
       String amount = data['amount']?.toString() ?? '0';
-      await notifications.show(DateTime.now().millisecond, 'طلب رحلة جديد ', '$name - $amount SDG',
-        const fln.NotificationDetails(android: fln.AndroidNotificationDetails('emergency_channel_v10', 'تنبيهات الطوارئ - Tracka', importance: fln.Importance.max, priority: fln.Priority.high, playSound: true, sound: fln.RawResourceAndroidNotificationSound('ride_request_sound'))),
+      String? rideId = _extractRideId(data);
+
+      await notifications.show(
+        rideId?.hashCode ?? DateTime.now().millisecond,
+        'طلب رحلة جديد ',
+        '$name - $amount SDG',
+        fln.NotificationDetails(
+          android: fln.AndroidNotificationDetails(
+            'emergency_channel_v10',
+            'تنبيهات الطوارئ - Tracka',
+            importance: fln.Importance.max,
+            priority: fln.Priority.high,
+            playSound: true,
+            additionalFlags: Int32List.fromList([4]), // FLAG_INSISTENT = 4
+            sound: const fln.RawResourceAndroidNotificationSound('ride_request_sound')
+          )
+        ),
         payload: jsonEncode(data),
       );
+      if (await Vibration.hasVibrator() ?? false) { Vibration.vibrate(pattern: [500, 1000], repeat: 0); }
     } catch (_) {}
   }
 
@@ -298,7 +332,10 @@ class _DriverHomeState extends State<DriverHome> {
     if (web != null) await web!.evaluateJavascript(source: "if(typeof handleRideRequest === 'function') handleRideRequest(${jsonEncode(data)});");
   }
 
-  void _stopAlerts() { globalAudioPlayer.stop(); Vibration.cancel(); }
+  void _stopAlerts() {
+    Vibration.cancel();
+    notifications.cancelAll();
+  }
 
   Future<void> _sendToPWA(Map<String, dynamic> data) async {
     if (web == null) return;
@@ -391,7 +428,6 @@ class _DriverHomeState extends State<DriverHome> {
   void dispose() {
     statusSyncTimer?.cancel();
     connectivitySubscription?.cancel();
-    globalAudioPlayer.dispose();
     super.dispose();
   }
 }
