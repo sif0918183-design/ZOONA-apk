@@ -64,11 +64,13 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     rideId?.hashCode ?? DateTime.now().millisecond, title, body,
     fln.NotificationDetails(
       android: fln.AndroidNotificationDetails(
-        'emergency_channel_v10', 
+        'emergency_channel_v11',
         'تنبيهات الطوارئ - تراكا',
         importance: fln.Importance.max,
         priority: fln.Priority.high,
         fullScreenIntent: true,
+        ongoing: true,
+        category: fln.AndroidNotificationCategory.call,
         playSound: true,
         additionalFlags: Int32List.fromList([4]), // FLAG_INSISTENT = 4
         sound: const fln.RawResourceAndroidNotificationSound('ride_request_sound'),
@@ -172,12 +174,13 @@ class _DriverHomeState extends State<DriverHome> {
 
     final androidImplementation = notifications.resolvePlatformSpecificImplementation<fln.AndroidFlutterLocalNotificationsPlugin>();
     const chan = fln.AndroidNotificationChannel(
-      'emergency_channel_v10',
+      'emergency_channel_v11',
       'تنبيهات الطوارئ - تراكا',
       description: 'هذه القناة مخصصة لطلبات الرحلات الهامة جداً',
       importance: fln.Importance.max,
       playSound: true,
       enableVibration: true,
+      audioAttributesUsage: fln.AudioAttributesUsage.notificationRingtone,
       sound: fln.RawResourceAndroidNotificationSound('ride_request_sound'),
     );
     await androidImplementation?.createNotificationChannel(chan);
@@ -300,10 +303,13 @@ class _DriverHomeState extends State<DriverHome> {
         '$name - $amount SDG',
         fln.NotificationDetails(
           android: fln.AndroidNotificationDetails(
-            'emergency_channel_v10',
+            'emergency_channel_v11',
             'تنبيهات الطوارئ - Tracka',
             importance: fln.Importance.max,
             priority: fln.Priority.high,
+            fullScreenIntent: true,
+            ongoing: true,
+            category: fln.AndroidNotificationCategory.call,
             playSound: true,
             additionalFlags: Int32List.fromList([4]), // FLAG_INSISTENT = 4
             sound: const fln.RawResourceAndroidNotificationSound('ride_request_sound')
@@ -311,7 +317,9 @@ class _DriverHomeState extends State<DriverHome> {
         ),
         payload: jsonEncode(data),
       );
-      if (await Vibration.hasVibrator() ?? false) { Vibration.vibrate(pattern: [500, 1000], repeat: 0); }
+      if (await Vibration.hasVibrator() ?? false) {
+        Vibration.vibrate(pattern: [500, 1000, 500, 1000], repeat: 0);
+      }
     } catch (_) {}
   }
 
