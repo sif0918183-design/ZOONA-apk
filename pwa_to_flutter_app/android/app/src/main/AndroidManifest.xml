@@ -49,7 +49,7 @@
         android:name="android.app.Application"
         tools:replace="android:name"
         android:icon="@mipmap/ic_launcher"
-        android:label="Tracka"
+        android:label="ZOONA"
         android:usesCleartextTraffic="true"
         android:theme="@style/LaunchTheme"
         android:hardwareAccelerated="true"
@@ -75,14 +75,6 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
 
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="https"
-                      android:host="driver.zoonasd.com"
-                      android:pathPrefix="/accept-ride.html" />
-            </intent-filter>
 
         </activity>
 
@@ -101,7 +93,7 @@
             android:theme="@android:style/Theme.Translucent.NoTitleBar" />
 
         <meta-data android:name="flutterEmbedding" android:value="2" />
-        <meta-data android:name="com.google.firebase.messaging.default_notification_channel_id" android:value="emergency_channel_v10" />
+        <meta-data android:name="com.google.firebase.messaging.default_notification_channel_id" android:value="default_notification_channel" />
         <meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@mipmap/ic_launcher" />
 
     </application>

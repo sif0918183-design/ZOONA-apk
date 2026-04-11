@@ -58,7 +58,7 @@ class WebViewPopup extends StatelessWidget {
                       },
                       onPermissionRequest: (controller, request) async {
                         // السماح تلقائياً للموقع الموثوق
-                        if (request.origin.host == 'driver.zoonasd.com') {
+                        if (request.origin.host == 'zoonasd.com') {
                           return PermissionResponse(
                             resources: request.resources,
                             action: PermissionResponseAction.GRANT,

@@ -1,9 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:tarhal_zoona_driver/main.dart';
+import 'package:matjar_zoona/main.dart';
 
 void main() {
   test('App instantiation test', () {
-    const app = DriverApp();
-    expect(app, isA<DriverApp>());
+    const app = ZoonaApp();
+    expect(app, isA<ZoonaApp>());
   });
 }
