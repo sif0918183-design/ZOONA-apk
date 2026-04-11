@@ -19,6 +19,9 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:vibration/vibration.dart';
 import 'webview_popup.dart';
 
+// أنواع إشعارات منصة السفر — هادئة بدون صوت مزعج أو مودال
+const _travelTypes = {'DRIVER_OFFER', 'DRIVER_SELECTED', 'NEW_CHAT_MESSAGE'};
+
 String? _extractRideId(Map<String, dynamic> data) {
   dynamic rideId = data['ride_id'] ?? data['rideId'];
   if (rideId == null && data['payload'] != null) {
@@ -48,39 +51,67 @@ Future<bool> _isDuplicateRide(String? rideId) async {
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
-  
+
   Map<String, dynamic> data = message.data;
-  String? rideId = _extractRideId(data);
-  if (await _isDuplicateRide(rideId)) return;
+  final String notifType = data['type']?.toString() ?? '';
+  final bool isTravelNotif = _travelTypes.contains(notifType);
+
+  // فحص التكرار فقط لطلبات الرحلات العادية
+  if (!isTravelNotif) {
+    String? rideId = _extractRideId(data);
+    if (await _isDuplicateRide(rideId)) return;
+  }
 
   final fln.FlutterLocalNotificationsPlugin notifications = fln.FlutterLocalNotificationsPlugin();
   const android = fln.AndroidInitializationSettings('@mipmap/ic_launcher');
   await notifications.initialize(const fln.InitializationSettings(android: android));
 
-  String title = message.notification?.title ?? "طلب رحلة جديد ";
-  String body = message.notification?.body ?? "لديك طلب رحلة جديد في انتظارك";
+  String title = message.notification?.title ?? (isTravelNotif ? 'تراكا' : 'طلب رحلة جديد ');
+  String body = message.notification?.body ?? (isTravelNotif ? 'لديك إشعار جديد' : 'لديك طلب رحلة جديد في انتظارك');
 
-  await notifications.show(
-    rideId?.hashCode ?? DateTime.now().millisecond, title, body,
-    fln.NotificationDetails(
-      android: fln.AndroidNotificationDetails(
-        'emergency_channel_v11',
-        'تنبيهات الطوارئ - تراكا',
-        importance: fln.Importance.max,
-        priority: fln.Priority.high,
-        fullScreenIntent: true,
-        ongoing: true,
-        category: fln.AndroidNotificationCategory.call,
-        playSound: true,
-        additionalFlags: Int32List.fromList([4]), // FLAG_INSISTENT = 4
-        sound: const fln.RawResourceAndroidNotificationSound('ride_request_sound'),
-        enableVibration: true,
-        channelShowBadge: true,
-        visibility: fln.NotificationVisibility.public,
+  if (isTravelNotif) {
+    // إشعار هادئ لمنصة السفر
+    await notifications.show(
+      DateTime.now().millisecond, title, body,
+      const fln.NotificationDetails(
+        android: fln.AndroidNotificationDetails(
+          'travel_notifications',
+          'إشعارات السفر - تراكا',
+          importance: fln.Importance.high,
+          priority: fln.Priority.high,
+          playSound: true,
+          enableVibration: true,
+          channelShowBadge: true,
+          visibility: fln.NotificationVisibility.public,
+        ),
       ),
-    ),
-    payload: jsonEncode(data),
-  );
+      payload: jsonEncode(data),
+    );
+  } else {
+    // إشعار طارئ لطلبات الرحلات العادية
+    String? rideId = _extractRideId(data);
+    await notifications.show(
+      rideId?.hashCode ?? DateTime.now().millisecond, title, body,
+      fln.NotificationDetails(
+        android: fln.AndroidNotificationDetails(
+          'emergency_channel_v11',
+          'تنبيهات الطوارئ - تراكا',
+          importance: fln.Importance.max,
+          priority: fln.Priority.high,
+          fullScreenIntent: true,
+          ongoing: true,
+          category: fln.AndroidNotificationCategory.call,
+          playSound: true,
+          additionalFlags: Int32List.fromList([4]), // FLAG_INSISTENT = 4
+          sound: const fln.RawResourceAndroidNotificationSound('ride_request_sound'),
+          enableVibration: true,
+          channelShowBadge: true,
+          visibility: fln.NotificationVisibility.public,
+        ),
+      ),
+      payload: jsonEncode(data),
+    );
+  }
 }
 
 @pragma('vm:entry-point')
@@ -173,7 +204,9 @@ class _DriverHomeState extends State<DriverHome> {
     );
 
     final androidImplementation = notifications.resolvePlatformSpecificImplementation<fln.AndroidFlutterLocalNotificationsPlugin>();
-    const chan = fln.AndroidNotificationChannel(
+
+    // قناة طلبات الرحلات العادية (صوت مزعج + FLAG_INSISTENT)
+    const urgentChan = fln.AndroidNotificationChannel(
       'emergency_channel_v11',
       'تنبيهات الطوارئ - تراكا',
       description: 'هذه القناة مخصصة لطلبات الرحلات الهامة جداً',
@@ -183,7 +216,18 @@ class _DriverHomeState extends State<DriverHome> {
       audioAttributesUsage: fln.AudioAttributesUsage.notificationRingtone,
       sound: fln.RawResourceAndroidNotificationSound('ride_request_sound'),
     );
-    await androidImplementation?.createNotificationChannel(chan);
+    await androidImplementation?.createNotificationChannel(urgentChan);
+
+    // قناة منصة السفر (صوت عادي هادئ)
+    const travelChan = fln.AndroidNotificationChannel(
+      'travel_notifications',
+      'إشعارات السفر - تراكا',
+      description: 'إشعارات قبول الرحلات والمحادثات في منصة السفر',
+      importance: fln.Importance.high,
+      playSound: true,
+      enableVibration: true,
+    );
+    await androidImplementation?.createNotificationChannel(travelChan);
   }
 
   Future<void> _initFirebaseMessaging() async {
@@ -198,16 +242,32 @@ class _DriverHomeState extends State<DriverHome> {
   }
 
   void _handleNotificationClick(Map<String, dynamic> data) {
+    final String notifType = data['type']?.toString() ?? '';
+    final bool isTravelNotif = _travelTypes.contains(notifType);
+
+    // إشعارات منصة السفر → فتح صفحة السفر مباشرة
+    if (isTravelNotif) {
+      _stopAlerts();
+      const String travelUrl = 'https://driver.zoonasd.com/driver_app/travel-platform.html';
+      if (web != null) {
+        web!.loadUrl(urlRequest: URLRequest(url: WebUri(travelUrl)));
+      } else {
+        setState(() => _pendingUrl = travelUrl);
+      }
+      return;
+    }
+
+    // طلبات الرحلات العادية → accept-ride.html
     _stopAlerts();
     dynamic rideId = data['ride_id'] ?? data['rideId'];
-    
+
     if (rideId == null && data['payload'] != null) {
       try {
         final payloadData = data['payload'] is String ? jsonDecode(data['payload']) : data['payload'];
         rideId = payloadData['ride_id'] ?? payloadData['rideId'];
       } catch (_) {}
     }
-    
+
     if (rideId != null) {
       final url = "https://driver.zoonasd.com/driver_app/accept-ride.html?id=$rideId";
       if (web != null) {
@@ -220,6 +280,16 @@ class _DriverHomeState extends State<DriverHome> {
 
   void _handleFcmMessage(RemoteMessage message) async {
     Map<String, dynamic> data = Map<String, dynamic>.from(message.data);
+    final String notifType = data['type']?.toString() ?? '';
+    final bool isTravelNotif = _travelTypes.contains(notifType);
+
+    if (isTravelNotif) {
+      // إشعار هادئ فقط — بدون صوت مزعج أو مودال
+      await _showTravelNotification(data, message.notification);
+      return;
+    }
+
+    // طلب رحلة عادي — فحص التكرار + إشعار طارئ + مودال
     String? rideId = _extractRideId(data);
     if (await _isDuplicateRide(rideId)) return;
 
@@ -312,14 +382,35 @@ class _DriverHomeState extends State<DriverHome> {
             category: fln.AndroidNotificationCategory.call,
             playSound: true,
             additionalFlags: Int32List.fromList([4]), // FLAG_INSISTENT = 4
-            sound: const fln.RawResourceAndroidNotificationSound('ride_request_sound')
-          )
+            sound: const fln.RawResourceAndroidNotificationSound('ride_request_sound'),
+          ),
         ),
         payload: jsonEncode(data),
       );
       if (await Vibration.hasVibrator() ?? false) {
         Vibration.vibrate(pattern: [500, 1000, 500, 1000], repeat: 0);
       }
+    } catch (_) {}
+  }
+
+  Future<void> _showTravelNotification(Map<String, dynamic> data, RemoteNotification? notif) async {
+    try {
+      final String title = notif?.title ?? 'تراكا';
+      final String body = notif?.body ?? 'لديك إشعار جديد';
+      await notifications.show(
+        DateTime.now().millisecond, title, body,
+        const fln.NotificationDetails(
+          android: fln.AndroidNotificationDetails(
+            'travel_notifications',
+            'إشعارات السفر - تراكا',
+            importance: fln.Importance.high,
+            priority: fln.Priority.high,
+            playSound: true,
+            enableVibration: true,
+          ),
+        ),
+        payload: jsonEncode(data),
+      );
     } catch (_) {}
   }
 
@@ -390,7 +481,7 @@ class _DriverHomeState extends State<DriverHome> {
               web = controller;
               controller.addJavaScriptHandler(handlerName: 'driverLogin', callback: (args) { if (args.isNotEmpty && args[0] is Map) _saveDriver(args[0]['driverId'].toString()); });
               controller.addJavaScriptHandler(handlerName: 'stopAlerts', callback: (args) { _stopAlerts(); });
-              
+
               if (_pendingUrl != null) {
                 controller.loadUrl(urlRequest: URLRequest(url: WebUri(_pendingUrl!)));
               }
@@ -402,7 +493,7 @@ class _DriverHomeState extends State<DriverHome> {
                 final String currentUrl = url.toString();
                 final prefs = await SharedPreferences.getInstance();
                 await prefs.setString('last_url', currentUrl);
-                
+
                 if (!currentUrl.contains('accept-ride.html')) {
                   _stopAlerts();
                 }
