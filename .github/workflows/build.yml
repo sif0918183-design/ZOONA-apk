@@ -27,7 +27,13 @@ jobs:
         working-directory: pwa_to_flutter_app
 
       - name: Setup Firebase Android
-        run: echo "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" | base64 --decode > android/app/google-services.json
+        run: |
+          if [ -z "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" ]; then
+            echo "Error: GOOGLE_SERVICES_JSON_BASE64 secret is missing!"
+            echo "Please add your google-services.json content as a Base64-encoded secret."
+            exit 1
+          fi
+          echo "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" | base64 --decode > android/app/google-services.json
         working-directory: pwa_to_flutter_app
 
       - name: Generate App Icons
