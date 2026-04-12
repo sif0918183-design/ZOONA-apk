@@ -27,31 +27,18 @@ jobs:
         working-directory: pwa_to_flutter_app
 
       - name: Setup Firebase Android
-        id: firebase-setup
-        run: |
-          if [ -z "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" ]; then
-            echo "Warning: GOOGLE_SERVICES_JSON_BASE64 secret is missing!"
-            echo "The build will be skipped because Firebase configuration is required for Android."
-            echo "Please add your google-services.json content as a Base64-encoded secret to your repository."
-            echo "secret_exists=false" >> $GITHUB_OUTPUT
-          else
-            echo "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" | base64 --decode > android/app/google-services.json
-            echo "secret_exists=true" >> $GITHUB_OUTPUT
-          fi
+        run: echo "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" | base64 --decode > android/app/google-services.json
         working-directory: pwa_to_flutter_app
 
       - name: Generate App Icons
-        if: steps.firebase-setup.outputs.secret_exists == 'true'
         run: flutter pub run flutter_launcher_icons || echo "Icons generation skipped"
         working-directory: pwa_to_flutter_app
 
       - name: Build APK
-        if: steps.firebase-setup.outputs.secret_exists == 'true'
         run: flutter build apk --release
         working-directory: pwa_to_flutter_app
 
       - name: Upload APK Artifact
-        if: steps.firebase-setup.outputs.secret_exists == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: ZOONA-App-Release
