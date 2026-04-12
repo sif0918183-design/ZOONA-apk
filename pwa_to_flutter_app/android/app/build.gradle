@@ -41,7 +41,7 @@ android {
 
     defaultConfig {
         // نصيحة: قم بتغيير الـ Application ID لاحقاً ليكون فريداً بك
-        applicationId "com.pichillilorenzo.pwa_to_flutter_app"
+        applicationId "com.zoona.store"
         
         minSdkVersion 21
         targetSdkVersion 34

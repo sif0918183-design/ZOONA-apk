@@ -1,4 +1,4 @@
-package com.pichillilorenzo.pwa_to_flutter_app;
+package com.zoona.store;
 
 import io.flutter.embedding.android.FlutterActivity;
 

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -202,13 +203,40 @@ class _ZoonaHomeState extends State<ZoonaHome> {
         ),
         child: SafeArea(
           child: InAppWebView(
-            initialUrlRequest: URLRequest(url: WebUri(_pendingUrl ?? kPwaUri.toString())),
+            initialUrlRequest: URLRequest(
+              url: WebUri(_pendingUrl ?? kPwaUri.toString()),
+              headers: {'Accept-Language': 'en-US,en;q=0.9'},
+            ),
+            initialUserScripts: UnmodifiableListView<UserScript>([
+              UserScript(
+                source: """
+                  (function() {
+                    // Force en-US locale for toLocaleString
+                    const originalToLocaleString = Number.prototype.toLocaleString;
+                    Number.prototype.toLocaleString = function(locales, options) {
+                      return originalToLocaleString.call(this, 'en-US', options);
+                    };
+
+                    // Force en-US locale for Intl.NumberFormat
+                    if (window.Intl && Intl.NumberFormat) {
+                      const OriginalNumberFormat = Intl.NumberFormat;
+                      Intl.NumberFormat = function(locales, options) {
+                        return new OriginalNumberFormat('en-US', options);
+                      };
+                      Intl.NumberFormat.prototype = OriginalNumberFormat.prototype;
+                      Intl.NumberFormat.supportedLocalesOf = OriginalNumberFormat.supportedLocalesOf;
+                    }
+                  })();
+                """,
+                injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+              ),
+            ]),
             initialSettings: InAppWebViewSettings(
               javaScriptEnabled: true,
               domStorageEnabled: true,
               geolocationEnabled: true,
               useShouldOverrideUrlLoading: true,
-              userAgent: "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36",
+              userAgent: "Mozilla/5.0 (Linux; Android 13; en-US) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36",
             ),
             onWebViewCreated: (controller) {
               web = controller;

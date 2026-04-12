@@ -1,94 +1,26 @@
 {
   "project_info": {
-    "project_number": "122641462099",
-    "project_id": "double-carport-476915-j7",
-    "storage_bucket": "double-carport-476915-j7.firebasestorage.app"
+    "project_number": "762853779001",
+    "project_id": "zoona-new",
+    "storage_bucket": "zoona-new.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:122641462099:android:9b40f6ac6f652db8f7e7a6",
-        "android_client_info": {
-          "package_name": "com.pichillilorenzo.pwa_to_flutter_app"
-        }
-      },
-      "oauth_client": [
-        {
-          "client_id": "122641462099-qeq7vu6mj10qh6uno4ka9llg0brd8sif.apps.googleusercontent.com",
-          "client_type": 3
-        }
-      ],
-      "api_key": [
-        {
-          "current_key": "AIzaSyAca4UfC3etIQkhe-Lg0yW14xLnpPUlHIg"
-        }
-      ],
-      "services": {
-        "appinvite_service": {
-          "other_platform_oauth_client": [
-            {
-              "client_id": "122641462099-qeq7vu6mj10qh6uno4ka9llg0brd8sif.apps.googleusercontent.com",
-              "client_type": 3
-            }
-          ]
-        }
-      }
-    },
-    {
-      "client_info": {
-        "mobilesdk_app_id": "1:122641462099:android:66d1560680f0bf79f7e7a6",
+        "mobilesdk_app_id": "1:762853779001:android:fb1411eed87f5bffc6cfe8",
         "android_client_info": {
           "package_name": "com.zoona.store"
         }
       },
-      "oauth_client": [
-        {
-          "client_id": "122641462099-qeq7vu6mj10qh6uno4ka9llg0brd8sif.apps.googleusercontent.com",
-          "client_type": 3
-        }
-      ],
+      "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyAca4UfC3etIQkhe-Lg0yW14xLnpPUlHIg"
+          "current_key": "AIzaSyBHRivevV2YvrFFh6dU4N7g0UfJh8V7nDE"
         }
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": [
-            {
-              "client_id": "122641462099-qeq7vu6mj10qh6uno4ka9llg0brd8sif.apps.googleusercontent.com",
-              "client_type": 3
-            }
-          ]
-        }
-      }
-    },
-    {
-      "client_info": {
-        "mobilesdk_app_id": "1:122641462099:android:a3b9874c0f41d673f7e7a6",
-        "android_client_info": {
-          "package_name": "zoonasd.com"
-        }
-      },
-      "oauth_client": [
-        {
-          "client_id": "122641462099-qeq7vu6mj10qh6uno4ka9llg0brd8sif.apps.googleusercontent.com",
-          "client_type": 3
-        }
-      ],
-      "api_key": [
-        {
-          "current_key": "AIzaSyAca4UfC3etIQkhe-Lg0yW14xLnpPUlHIg"
-        }
-      ],
-      "services": {
-        "appinvite_service": {
-          "other_platform_oauth_client": [
-            {
-              "client_id": "122641462099-qeq7vu6mj10qh6uno4ka9llg0brd8sif.apps.googleusercontent.com",
-              "client_type": 3
-            }
-          ]
+          "other_platform_oauth_client": []
         }
       }
     }
