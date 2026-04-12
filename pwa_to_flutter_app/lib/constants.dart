@@ -1,7 +1,7 @@
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 // PWA Url
-final kPwaUri = WebUri('https://driver.zoonasd.com/');
+final kPwaUri = WebUri('https://zoonasd.com/');
 final kPwaHost = kPwaUri.host;
 
 // Custom HTML Error Page.
