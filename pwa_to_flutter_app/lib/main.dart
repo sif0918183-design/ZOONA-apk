@@ -70,6 +70,8 @@ class ZoonaApp extends StatelessWidget {
     return const MaterialApp(
       title: 'متجر زونا',
       debugShowCheckedModeBanner: false,
+      locale: Locale('en', 'US'),
+      supportedLocales: [Locale('en', 'US')],
       home: ZoonaHome()
     );
   }
