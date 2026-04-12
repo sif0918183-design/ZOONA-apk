@@ -26,6 +26,10 @@ jobs:
         run: flutter pub get
         working-directory: pwa_to_flutter_app
 
+      - name: Setup Firebase Android
+        run: echo "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" | base64 --decode > android/app/google-services.json
+        working-directory: pwa_to_flutter_app
+
       - name: Generate App Icons
         run: flutter pub run flutter_launcher_icons || echo "Icons generation skipped"
         working-directory: pwa_to_flutter_app
