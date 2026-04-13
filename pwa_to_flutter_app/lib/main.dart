@@ -7,6 +7,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart'
     as fln;
@@ -213,7 +214,7 @@ class _ZoonaHomeState extends State<ZoonaHome> {
     if (status.isGranted) return;
 
     _isDialogShowing = true;
-    await Future.delayed(const Duration(seconds: 4));
+    await Future.delayed(const Duration(seconds: 6));
 
     if (!mounted) {
       _isDialogShowing = false;
@@ -232,10 +233,13 @@ class _ZoonaHomeState extends State<ZoonaHome> {
             color: Color(0xFFD32F2F),
             size: 50,
           ),
-          content: const Text(
+          content: Text(
             'فعّل الإشعارات لتصلك أحدث عروض الخصومات والهدايا الخاصة بك',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            style: GoogleFonts.tajawal(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
           ),
           actionsAlignment: MainAxisAlignment.spaceEvenly,
           actions: [
@@ -245,9 +249,9 @@ class _ZoonaHomeState extends State<ZoonaHome> {
                 prefs.setBool('notification_asked', true);
                 _isDialogShowing = false;
               },
-              child: const Text(
+              child: Text(
                 'ليس الآن',
-                style: TextStyle(color: Colors.grey),
+                style: GoogleFonts.tajawal(color: Colors.grey),
               ),
             ),
             ElevatedButton(
@@ -263,9 +267,9 @@ class _ZoonaHomeState extends State<ZoonaHome> {
                 prefs.setBool('notification_asked', true);
                 _isDialogShowing = false;
               },
-              child: const Text(
+              child: Text(
                 'تفعيل الآن',
-                style: TextStyle(color: Colors.white),
+                style: GoogleFonts.tajawal(color: Colors.white),
               ),
             ),
           ],
