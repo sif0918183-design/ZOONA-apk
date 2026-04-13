@@ -7,7 +7,6 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart'
     as fln;
@@ -233,10 +232,11 @@ class _ZoonaHomeState extends State<ZoonaHome> {
             color: Color(0xFFD32F2F),
             size: 50,
           ),
-          content: Text(
+          content: const Text(
             'فعّل الإشعارات لتصلك أحدث عروض الخصومات والهدايا الخاصة بك',
             textAlign: TextAlign.center,
-            style: GoogleFonts.tajawal(
+            style: TextStyle(
+              fontFamily: 'Tajawal',
               fontSize: 16,
               fontWeight: FontWeight.bold,
             ),
@@ -249,9 +249,9 @@ class _ZoonaHomeState extends State<ZoonaHome> {
                 prefs.setBool('notification_asked', true);
                 _isDialogShowing = false;
               },
-              child: Text(
+              child: const Text(
                 'ليس الآن',
-                style: GoogleFonts.tajawal(color: Colors.grey),
+                style: TextStyle(fontFamily: 'Tajawal', color: Colors.grey),
               ),
             ),
             ElevatedButton(
@@ -267,9 +267,9 @@ class _ZoonaHomeState extends State<ZoonaHome> {
                 prefs.setBool('notification_asked', true);
                 _isDialogShowing = false;
               },
-              child: Text(
+              child: const Text(
                 'تفعيل الآن',
-                style: GoogleFonts.tajawal(color: Colors.white),
+                style: TextStyle(fontFamily: 'Tajawal', color: Colors.white),
               ),
             ),
           ],
