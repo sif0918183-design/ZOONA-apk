@@ -208,7 +208,7 @@ class _ZoonaHomeState extends State<ZoonaHome> {
   Widget build(BuildContext context) {
     return PopScope(
       canPop: false,
-      onPopInvokedWithResult: (didPop, result) async {
+      onPopInvoked: (didPop) async {
         if (didPop) return;
         if (web != null && await web!.canGoBack()) {
           web!.goBack();
