@@ -6,9 +6,10 @@ import 'package:flutter/foundation.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; 
+import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart' as fln;
+import 'package:flutter_local_notifications/flutter_local_notifications.dart'
+    as fln;
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -21,15 +22,19 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   // We only need to show a local notification here if it's a data-only message.
   if (message.notification == null) {
     await Firebase.initializeApp();
-    final fln.FlutterLocalNotificationsPlugin notifications = fln.FlutterLocalNotificationsPlugin();
+    final fln.FlutterLocalNotificationsPlugin notifications =
+        fln.FlutterLocalNotificationsPlugin();
     const android = fln.AndroidInitializationSettings('@mipmap/ic_launcher');
-    await notifications.initialize(const fln.InitializationSettings(android: android));
+    await notifications
+        .initialize(const fln.InitializationSettings(android: android));
 
     String title = message.data['title'] ?? 'متجر زونا';
     String body = message.data['body'] ?? 'لديك إشعار جديد';
 
     await notifications.show(
-      message.hashCode, title, body,
+      message.hashCode,
+      title,
+      body,
       const fln.NotificationDetails(
         android: fln.AndroidNotificationDetails(
           'default_notification_channel',
@@ -50,11 +55,13 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-  
+
   await Firebase.initializeApp();
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
-  if (kDebugMode && !kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+  if (kDebugMode &&
+      !kIsWeb &&
+      defaultTargetPlatform == TargetPlatform.android) {
     await InAppWebViewController.setWebContentsDebuggingEnabled(true);
   }
 
@@ -69,10 +76,9 @@ class ZoonaApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const MaterialApp(
-      title: 'متجر زونا',
-      debugShowCheckedModeBanner: false,
-      home: ZoonaHome()
-    );
+        title: 'متجر زونا',
+        debugShowCheckedModeBanner: false,
+        home: ZoonaHome());
   }
 }
 
@@ -83,7 +89,8 @@ class ZoonaHome extends StatefulWidget {
 }
 
 class _ZoonaHomeState extends State<ZoonaHome> {
-  final fln.FlutterLocalNotificationsPlugin notifications = fln.FlutterLocalNotificationsPlugin();
+  final fln.FlutterLocalNotificationsPlugin notifications =
+      fln.FlutterLocalNotificationsPlugin();
   InAppWebViewController? web;
   bool _isPageLoaded = false;
   String? fcmToken;
@@ -98,16 +105,19 @@ class _ZoonaHomeState extends State<ZoonaHome> {
   }
 
   Future<void> _initNotifications() async {
-    const androidInit = fln.AndroidInitializationSettings('@mipmap/ic_launcher');
-    await notifications.initialize(const fln.InitializationSettings(android: androidInit),
-      onDidReceiveNotificationResponse: (details) {
-        if (details.payload != null) {
-          _handleNotificationClick(jsonDecode(details.payload!));
-        }
+    const androidInit =
+        fln.AndroidInitializationSettings('@mipmap/ic_launcher');
+    await notifications
+        .initialize(const fln.InitializationSettings(android: androidInit),
+            onDidReceiveNotificationResponse: (details) {
+      if (details.payload != null) {
+        _handleNotificationClick(jsonDecode(details.payload!));
       }
-    );
+    });
 
-    final androidImplementation = notifications.resolvePlatformSpecificImplementation<fln.AndroidFlutterLocalNotificationsPlugin>();
+    final androidImplementation =
+        notifications.resolvePlatformSpecificImplementation<
+            fln.AndroidFlutterLocalNotificationsPlugin>();
 
     const channel = fln.AndroidNotificationChannel(
       'default_notification_channel',
@@ -140,7 +150,8 @@ class _ZoonaHomeState extends State<ZoonaHome> {
       _sendTokenToPWA(newToken);
     });
 
-    FirebaseMessaging.onMessageOpenedApp.listen((message) => _handleNotificationClick(message.data));
+    FirebaseMessaging.onMessageOpenedApp
+        .listen((message) => _handleNotificationClick(message.data));
 
     messaging.getInitialMessage().then((message) {
       if (message != null) _handleNotificationClick(message.data);
@@ -187,29 +198,41 @@ class _ZoonaHomeState extends State<ZoonaHome> {
 
   void _sendTokenToPWA(String token) async {
     if (web != null && _isPageLoaded) {
-      await web!.evaluateJavascript(source: "if(typeof window.setFCMToken === 'function') window.setFCMToken('$token');");
+      await web!.evaluateJavascript(
+          source:
+              "if(typeof window.setFCMToken === 'function') window.setFCMToken('$token');");
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: const SystemUiOverlayStyle(
-          statusBarColor: Colors.transparent,
-          statusBarIconBrightness: Brightness.dark,
-          systemNavigationBarColor: Colors.white,
-          systemNavigationBarIconBrightness: Brightness.dark,
-        ),
-        child: SafeArea(
-          child: InAppWebView(
-            initialUrlRequest: URLRequest(
-              url: WebUri(_pendingUrl ?? kPwaUri.toString()),
-              headers: {'Accept-Language': 'en-US,en;q=0.9'},
-            ),
-            initialUserScripts: UnmodifiableListView<UserScript>([
-              UserScript(
-                source: """
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        if (web != null && await web!.canGoBack()) {
+          web!.goBack();
+        } else {
+          SystemNavigator.pop();
+        }
+      },
+      child: Scaffold(
+        body: AnnotatedRegion<SystemUiOverlayStyle>(
+          value: const SystemUiOverlayStyle(
+            statusBarColor: Colors.transparent,
+            statusBarIconBrightness: Brightness.dark,
+            systemNavigationBarColor: Colors.white,
+            systemNavigationBarIconBrightness: Brightness.dark,
+          ),
+          child: SafeArea(
+            child: InAppWebView(
+              initialUrlRequest: URLRequest(
+                url: WebUri(_pendingUrl ?? kPwaUri.toString()),
+                headers: {'Accept-Language': 'en-US,en;q=0.9'},
+              ),
+              initialUserScripts: UnmodifiableListView<UserScript>([
+                UserScript(
+                  source: """
                   (function() {
                     // Force en-US locale for toLocaleString
                     const originalToLocaleString = Number.prototype.toLocaleString;
@@ -228,40 +251,48 @@ class _ZoonaHomeState extends State<ZoonaHome> {
                     }
                   })();
                 """,
-                injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+                  injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+                ),
+              ]),
+              initialSettings: InAppWebViewSettings(
+                javaScriptEnabled: true,
+                domStorageEnabled: true,
+                geolocationEnabled: true,
+                useShouldOverrideUrlLoading: true,
+                userAgent:
+                    "Mozilla/5.0 (Linux; Android 13; en-US) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36",
               ),
-            ]),
-            initialSettings: InAppWebViewSettings(
-              javaScriptEnabled: true,
-              domStorageEnabled: true,
-              geolocationEnabled: true,
-              useShouldOverrideUrlLoading: true,
-              userAgent: "Mozilla/5.0 (Linux; Android 13; en-US) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36",
+              onWebViewCreated: (controller) {
+                web = controller;
+                if (_pendingUrl != null) {
+                  controller.loadUrl(
+                      urlRequest: URLRequest(url: WebUri(_pendingUrl!)));
+                }
+              },
+              onGeolocationPermissionsShowPrompt: (controller, origin) async =>
+                  GeolocationPermissionShowPromptResponse(
+                      origin: origin, allow: true, retain: true),
+              onLoadStop: (controller, url) async {
+                _isPageLoaded = true;
+                if (url != null) {
+                  final String currentUrl = url.toString();
+                  final prefs = await SharedPreferences.getInstance();
+                  await prefs.setString('last_url', currentUrl);
+                }
+                if (fcmToken != null) _sendTokenToPWA(fcmToken!);
+              },
+              shouldOverrideUrlLoading: (controller, nav) async {
+                final uri = nav.request.url!;
+                if (['whatsapp', 'tel', 'sms', 'mailto'].contains(uri.scheme) ||
+                    uri.toString().contains('wa.me')) {
+                  try {
+                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                  } catch (_) {}
+                  return NavigationActionPolicy.CANCEL;
+                }
+                return NavigationActionPolicy.ALLOW;
+              },
             ),
-            onWebViewCreated: (controller) {
-              web = controller;
-              if (_pendingUrl != null) {
-                controller.loadUrl(urlRequest: URLRequest(url: WebUri(_pendingUrl!)));
-              }
-            },
-            onGeolocationPermissionsShowPrompt: (controller, origin) async => GeolocationPermissionShowPromptResponse(origin: origin, allow: true, retain: true),
-            onLoadStop: (controller, url) async {
-              _isPageLoaded = true;
-              if (url != null) {
-                final String currentUrl = url.toString();
-                final prefs = await SharedPreferences.getInstance();
-                await prefs.setString('last_url', currentUrl);
-              }
-              if (fcmToken != null) _sendTokenToPWA(fcmToken!);
-            },
-            shouldOverrideUrlLoading: (controller, nav) async {
-              final uri = nav.request.url!;
-              if (['whatsapp', 'tel', 'sms', 'mailto'].contains(uri.scheme) || uri.toString().contains('wa.me')) {
-                try { await launchUrl(uri, mode: LaunchMode.externalApplication); } catch (_) {}
-                return NavigationActionPolicy.CANCEL;
-              }
-              return NavigationActionPolicy.ALLOW;
-            },
           ),
         ),
       ),
