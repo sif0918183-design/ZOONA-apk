@@ -66,7 +66,7 @@ Future<void> main() async {
   }
 
   // Requesting necessary permissions
-  await [Permission.notification, Permission.camera].request();
+  await [Permission.camera].request();
 
   runApp(const ZoonaApp());
 }
@@ -96,6 +96,7 @@ class _ZoonaHomeState extends State<ZoonaHome> {
   String? fcmToken;
   String? _pendingUrl;
   StreamSubscription<RemoteMessage>? _onMessageSubscription;
+  bool _isDialogShowing = false;
 
   @override
   void initState() {
@@ -133,12 +134,8 @@ class _ZoonaHomeState extends State<ZoonaHome> {
   Future<void> _initFirebaseMessaging() async {
     FirebaseMessaging messaging = FirebaseMessaging.instance;
 
-    // Request permission for iOS/Android
-    NotificationSettings settings = await messaging.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
+    // Check current permission status without requesting
+    NotificationSettings settings = await messaging.getNotificationSettings();
 
     if (settings.authorizationStatus == AuthorizationStatus.authorized) {
       fcmToken = await messaging.getToken();
@@ -201,6 +198,101 @@ class _ZoonaHomeState extends State<ZoonaHome> {
       await web!.evaluateJavascript(
           source:
               "if(typeof window.setFCMToken === 'function') window.setFCMToken('$token');");
+    }
+  }
+
+  Future<void> _showNotificationPermissionDialog() async {
+    if (_isDialogShowing) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    final bool? alreadyAsked = prefs.getBool('notification_asked');
+
+    if (alreadyAsked == true) return;
+
+    final status = await Permission.notification.status;
+    if (status.isGranted) return;
+
+    _isDialogShowing = true;
+    await Future.delayed(const Duration(seconds: 6));
+
+    if (!mounted) {
+      _isDialogShowing = false;
+      return;
+    }
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Icon(
+            Icons.notifications_active,
+            color: Color(0xFFD32F2F),
+            size: 50,
+          ),
+          content: const Text(
+            'فعّل الإشعارات لتصلك أحدث عروض الخصومات والهدايا الخاصة بك',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontFamily: 'Tajawal',
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          actionsAlignment: MainAxisAlignment.spaceEvenly,
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                prefs.setBool('notification_asked', true);
+                _isDialogShowing = false;
+              },
+              child: const Text(
+                'ليس الآن',
+                style: TextStyle(fontFamily: 'Tajawal', color: Colors.grey),
+              ),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFD32F2F),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              onPressed: () {
+                Navigator.of(context).pop();
+                _requestNotificationPermission();
+                prefs.setBool('notification_asked', true);
+                _isDialogShowing = false;
+              },
+              child: const Text(
+                'تفعيل الآن',
+                style: TextStyle(fontFamily: 'Tajawal', color: Colors.white),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _requestNotificationPermission() async {
+    // Request via permission_handler
+    await Permission.notification.request();
+
+    // Request via Firebase Messaging to ensure everything is set up
+    FirebaseMessaging messaging = FirebaseMessaging.instance;
+    NotificationSettings settings = await messaging.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+
+    if (settings.authorizationStatus == AuthorizationStatus.authorized) {
+      fcmToken = await messaging.getToken();
+      if (fcmToken != null) _sendTokenToPWA(fcmToken!);
     }
   }
 
@@ -280,6 +372,7 @@ class _ZoonaHomeState extends State<ZoonaHome> {
                   await prefs.setString('last_url', currentUrl);
                 }
                 if (fcmToken != null) _sendTokenToPWA(fcmToken!);
+                _showNotificationPermissionDialog();
               },
               shouldOverrideUrlLoading: (controller, nav) async {
                 final uri = nav.request.url!;
