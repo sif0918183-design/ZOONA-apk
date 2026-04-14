@@ -233,7 +233,7 @@ class _ZoonaHomeState extends State<ZoonaHome> {
             size: 50,
           ),
           content: const Text(
-            'فعّل الإشعارات لتصلك أحدث عروض الخصومات والهدايا الخاصة بك',
+            'كن أول من يقتنص العروض! فعّل الإشعارات لتصلك كوبونات الخصم وهداياك الخاصة فور وصولها🎁',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontFamily: 'Tajawal',
