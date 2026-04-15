@@ -1,4 +1,4 @@
-name: Build ZOONA APK
+name: Build ZOONA APK & AAB
 
 on:
   push:
@@ -34,13 +34,48 @@ jobs:
         run: flutter pub run flutter_launcher_icons || echo "Icons generation skipped"
         working-directory: pwa_to_flutter_app
 
+      # =========================
+      # 🔐 SIGNING SETUP
+      # =========================
+      - name: Decode Keystore
+        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/upload-keystore.jks
+        working-directory: pwa_to_flutter_app
+
+      - name: Create key.properties
+        run: |
+          echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}" > android/key.properties
+          echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> android/key.properties
+          echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> android/key.properties
+          echo "storeFile=upload-keystore.jks" >> android/key.properties
+        working-directory: pwa_to_flutter_app
+
+      # =========================
+      # 📦 BUILD APK
+      # =========================
       - name: Build APK
         run: flutter build apk --release
         working-directory: pwa_to_flutter_app
 
+      # =========================
+      # 📦 BUILD AAB
+      # =========================
+      - name: Build AAB
+        run: flutter build appbundle --release
+        working-directory: pwa_to_flutter_app
+
+      # =========================
+      # 📤 UPLOAD ARTIFACTS
+      # =========================
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ZOONA-App-Release
+          name: ZOONA-APK-Release
           path: pwa_to_flutter_app/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 7
+
+      - name: Upload AAB Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ZOONA-AAB-Release
+          path: pwa_to_flutter_app/build/app/outputs/bundle/release/app-release.aab
           retention-days: 7
