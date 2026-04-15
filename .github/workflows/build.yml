@@ -1,4 +1,4 @@
-name: Build ZOONA APK
+name: Build ZOONA APK & AAB
 
 on:
   push:
@@ -30,6 +30,19 @@ jobs:
         run: echo "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" | base64 --decode > android/app/google-services.json
         working-directory: pwa_to_flutter_app
 
+      - name: Setup Android Signing
+        if: ${{ secrets.KEYSTORE_BASE64 != '' }}
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          printf "%s" "$KEYSTORE_BASE64" | base64 --decode > android/app/upload-keystore.jks
+          printf "storePassword=%s\nkeyPassword=%s\nkeyAlias=%s\nstoreFile=upload-keystore.jks\n" \
+            "$KEYSTORE_PASSWORD" "$KEY_PASSWORD" "$KEY_ALIAS" > android/key.properties
+        working-directory: pwa_to_flutter_app
+
       - name: Generate App Icons
         run: flutter pub run flutter_launcher_icons || echo "Icons generation skipped"
         working-directory: pwa_to_flutter_app
@@ -38,9 +51,15 @@ jobs:
         run: flutter build apk --release
         working-directory: pwa_to_flutter_app
 
-      - name: Upload APK Artifact
+      - name: Build AAB
+        run: flutter build appbundle --release
+        working-directory: pwa_to_flutter_app
+
+      - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ZOONA-App-Release
-          path: pwa_to_flutter_app/build/app/outputs/flutter-apk/app-release.apk
+          path: |
+            pwa_to_flutter_app/build/app/outputs/flutter-apk/app-release.apk
+            pwa_to_flutter_app/build/app/outputs/bundle/release/app-release.aab
           retention-days: 7
