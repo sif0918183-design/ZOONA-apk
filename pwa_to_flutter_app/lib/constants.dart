@@ -7,7 +7,7 @@ final kPwaHost = kPwaUri.host;
 // Custom HTML Error Page.
 const kHTMLErrorPage = """
 <html>
-  <head></head>
+  <head></head> 
   <body>
     <h1>Not connected to Internet :(</h1>
   </body>
