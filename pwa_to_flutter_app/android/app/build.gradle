@@ -47,7 +47,7 @@ android {
 
     defaultConfig {
         // نصيحة: قم بتغيير الـ Application ID لاحقاً ليكون فريداً بك
-        applicationId "com.zoona.store"
+        applicationId "com.zoona.store.app"
         
         minSdkVersion 21
         targetSdkVersion 34
