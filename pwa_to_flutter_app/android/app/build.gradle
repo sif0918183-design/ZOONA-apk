@@ -33,7 +33,7 @@ apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
 apply plugin: 'com.google.gms.google-services'
 
 android {
-    compileSdkVersion 34
+    compileSdkVersion 35
     ndkVersion flutter.ndkVersion
 
     compileOptions {
@@ -50,7 +50,7 @@ android {
         applicationId "com.zoona.store.app"
         
         minSdkVersion 21
-        targetSdkVersion 34
+        targetSdkVersion 35
         
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
