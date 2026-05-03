@@ -1,4 +1,4 @@
-package com.zoona.store;
+package com.zoona.store.app;
 
 import io.flutter.embedding.android.FlutterActivity;
 

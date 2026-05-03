@@ -27,7 +27,7 @@ jobs:
         working-directory: pwa_to_flutter_app
 
       - name: Setup Firebase Android
-        run: echo "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" | base64 --decode > android/app/google-services.json
+        run: printf "%s" "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" | base64 --decode > android/app/google-services.json
         working-directory: pwa_to_flutter_app
 
       - name: Generate App Icons
@@ -38,13 +38,13 @@ jobs:
       # 🔐 SIGNING SETUP
       # =========================
       - name: Decode Keystore
-        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/upload-keystore.jks
+        run: printf "%s" "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/upload-keystore.jks
         working-directory: pwa_to_flutter_app
 
       - name: Create key.properties
         run: |
           echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}" > android/key.properties
-          echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> android/key.properties
+          echo "keyPassword=${{ secrets.KEY_PASSWORD || secrets.KEY_PASSWOR }}" >> android/key.properties
           echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> android/key.properties
           echo "storeFile=upload-keystore.jks" >> android/key.properties
         working-directory: pwa_to_flutter_app
