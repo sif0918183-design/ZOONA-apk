@@ -351,8 +351,6 @@ class _ZoonaHomeState extends State<ZoonaHome> {
                 domStorageEnabled: true,
                 geolocationEnabled: true,
                 useShouldOverrideUrlLoading: true,
-                allowsBackForwardNavigationGestures: true,
-                cacheMode: CacheMode.LOAD_DEFAULT,
                 userAgent:
                     "Mozilla/5.0 (Linux; Android 13; en-US) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36",
               ),
