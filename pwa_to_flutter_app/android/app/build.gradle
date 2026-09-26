@@ -36,6 +36,12 @@ android {
     compileSdkVersion 36
     ndkVersion flutter.ndkVersion
 
+    packagingOptions {
+        jniLibs {
+            useLegacyPackaging = false
+        }
+    }
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
