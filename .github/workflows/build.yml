@@ -64,6 +64,81 @@ jobs:
         working-directory: pwa_to_flutter_app
 
       # =========================
+      # 🔍 INSPECT & VERIFY 16KB PAGE ALIGNMENT
+      # =========================
+      - name: Verify AAB 16KB Page Alignment
+        run: |
+          sudo apt-get update && sudo apt-get install -y llvm
+          curl -sSL https://github.com/google/bundletool/releases/download/1.17.1/bundletool-all-1.17.1.jar -o /tmp/bundletool.jar
+
+          AAB_PATH="build/app/outputs/bundle/release/app-release.aab"
+          FAIL=0
+
+          echo "=== BUILD ENVIRONMENT METADATA ==="
+          echo "Flutter Version: 3.16.0"
+          echo "AGP Version: 7.4.2"
+          echo "Gradle Version: 7.6.3"
+          echo "Compile SDK: 36 | Target SDK: 36 | Min SDK: 21"
+          echo "Application ID: com.zoona.store.app"
+          echo "=================================="
+
+          echo "=== 1. BUNDLETOOL DUMP CONFIG ==="
+          java -jar /tmp/bundletool.jar dump config --bundle="$AAB_PATH" > /tmp/bundle_config.txt
+          cat /tmp/bundle_config.txt
+
+          if grep -q "PAGE_ALIGNMENT_16K" /tmp/bundle_config.txt; then
+            echo "✅ bundletool dump config confirmed PAGE_ALIGNMENT_16K!"
+          else
+            echo "❌ ERROR: PAGE_ALIGNMENT_16K NOT FOUND in bundletool config!"
+            FAIL=1
+          fi
+
+          echo "=== 2. EXTRACTING & INSPECTING ELF .SO LIBRARIES INSIDE AAB ==="
+          mkdir -p /tmp/aab_extracted
+          unzip -q "$AAB_PATH" -d /tmp/aab_extracted
+
+          SO_FILES=$(find /tmp/aab_extracted -name "*.so")
+
+          if [ -z "$SO_FILES" ]; then
+            echo "❌ ERROR: No .so native libraries found inside AAB!"
+            FAIL=1
+          fi
+
+          echo "Found .so native library files:"
+          echo "$SO_FILES"
+          echo "--------------------------------------------------"
+
+          for so in $SO_FILES; do
+            echo "Inspecting library: $so"
+            rel_path=$(echo "$so" | sed 's|/tmp/aab_extracted/||')
+
+            llvm-readelf -l "$so" | grep LOAD -A 1 || true
+            aligns=$(llvm-readelf -l "$so" | awk '/LOAD/ {print $NF}')
+            echo "PT_LOAD Alignments for [$rel_path]: $aligns"
+
+            for align in $aligns; do
+              dec_align=$(printf "%d" "$align")
+              hex_align=$(printf "0x%x" "$dec_align")
+
+              if [ "$dec_align" -lt 16384 ]; then
+                echo "❌ FAIL: Library [$rel_path] PT_LOAD segment alignment is $hex_align ($dec_align bytes), which is LESS than 16384 (16KB)!"
+                FAIL=1
+              else
+                echo "✅ PASS: Library [$rel_path] PT_LOAD segment alignment is $hex_align ($dec_align bytes) >= 16384 (16KB)."
+              fi
+            done
+            echo "--------------------------------------------------"
+          done
+
+          if [ $FAIL -ne 0 ]; then
+            echo "❌ 16KB PAGE SIZE VERIFICATION FAILED"
+            exit 1
+          else
+            echo "🎉 16KB PAGE SIZE VERIFICATION PASSED"
+          fi
+        working-directory: pwa_to_flutter_app
+
+      # =========================
       # 📤 UPLOAD ARTIFACTS
       # =========================
       - name: Upload APK Artifact
