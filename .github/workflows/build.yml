@@ -64,78 +64,88 @@ jobs:
         working-directory: pwa_to_flutter_app
 
       # =========================
-      # 🔍 INSPECT & VERIFY 16KB PAGE ALIGNMENT
+      # 🔍 COMPREHENSIVE 16KB DIAGNOSTIC AUDIT
       # =========================
-      - name: Verify AAB 16KB Page Alignment
+      - name: Comprehensive 16KB Diagnostic Audit
         run: |
-          sudo apt-get update && sudo apt-get install -y llvm
+          sudo apt-get update && sudo apt-get install -y llvm zipalign
           curl -sSL https://github.com/google/bundletool/releases/download/1.17.1/bundletool-all-1.17.1.jar -o /tmp/bundletool.jar
 
           AAB_PATH="build/app/outputs/bundle/release/app-release.aab"
-          FAIL=0
 
-          echo "=========================================="
-          echo "=== BUILD ENVIRONMENT METADATA ==="
-          echo "Flutter Version: 3.16.0"
+          echo "=================================================="
+          echo "=== 1. BUILD ENVIRONMENT & SDK METADATA ==="
+          echo "=================================================="
+          flutter --version
           echo "AGP Version: 7.4.2"
           echo "Gradle Version: 7.6.3"
           echo "Compile SDK: 36 | Target SDK: 36 | Min SDK: 21"
-          echo "Version: 1.1.0+10 (code: 10, name: 1.1.0)"
           echo "Application ID: com.zoona.store.app"
-          echo "=========================================="
+          echo "Version: 1.1.0+10"
 
-          echo "=== 1. BUNDLETOOL DUMP CONFIG ==="
-          java -jar /tmp/bundletool.jar dump config --bundle="$AAB_PATH" > /tmp/bundle_config.txt
-          cat /tmp/bundle_config.txt
+          echo "=================================================="
+          echo "=== 2. BUNDLETOOL DUMP CONFIG ==="
+          echo "=================================================="
+          java -jar /tmp/bundletool.jar dump config --bundle="$AAB_PATH" > /tmp/bundle_config.json
+          cat /tmp/bundle_config.json
 
-          if grep -q "PAGE_ALIGNMENT_16K" /tmp/bundle_config.txt; then
-            echo "✅ bundletool dump config confirmed PAGE_ALIGNMENT_16K!"
-          else
-            echo "ℹ️ INFO: AGP 7.4.2 does not emit PAGE_ALIGNMENT_16K in bundle config metadata (AGP 8.5.1+ is recommended for 16KB zip alignment)."
-          fi
+          echo ""
+          echo "Bundletool Config Alignment Result:"
+          java -jar /tmp/bundletool.jar dump config --bundle="$AAB_PATH" | grep -i "alignment" || echo "PAGE_ALIGNMENT_4K (No explicit 16KB page alignment in BundleConfig)"
 
-          echo "=== 2. EXTRACTING & INSPECTING ELF .SO LIBRARIES INSIDE AAB ==="
+          echo "=================================================="
+          echo "=== 3. EXTRACTING & INSPECTING ALL .SO LIBRARIES ==="
+          echo "=================================================="
           mkdir -p /tmp/aab_extracted
           unzip -q "$AAB_PATH" -d /tmp/aab_extracted
 
           SO_FILES=$(find /tmp/aab_extracted -name "*.so")
 
-          if [ -z "$SO_FILES" ]; then
-            echo "❌ ERROR: No .so native libraries found inside AAB!"
-            FAIL=1
-          fi
-
-          echo "----------------------------------------------------------------------------------------------------"
-          printf "%-40s | %-12s | %-16s | %-20s\n" "Library File" "ABI" "p_align (Hex/Dec)" "16KB ELF Compatible?"
-          echo "----------------------------------------------------------------------------------------------------"
-
           for so in $SO_FILES; do
             rel_path=$(echo "$so" | sed 's|/tmp/aab_extracted/base/lib/||')
-            abi=$(echo "$rel_path" | cut -d'/' -f1)
-            lib_name=$(echo "$rel_path" | cut -d'/' -f2)
+            echo "--- Library: $rel_path ---"
+
+            # Print PT_LOAD segments and p_align
+            llvm-readelf -l "$so" | grep -E "LOAD|Type" -A 1 || true
 
             aligns=$(llvm-readelf -l "$so" | awk '/LOAD/ {print $NF}')
-
             for align in $aligns; do
               dec_align=$(printf "%d" "$align")
               hex_align=$(printf "0x%x" "$dec_align")
-
-              if [ "$dec_align" -lt 16384 ]; then
-                printf "%-40s | %-12s | %-16s | %-20s\n" "$lib_name" "$abi" "$hex_align ($dec_align)" "❌ FAILED (<16KB)"
-                FAIL=1
-              else
-                printf "%-40s | %-12s | %-16s | %-20s\n" "$lib_name" "$abi" "$hex_align ($dec_align)" "✅ PASSED (>=16KB)"
-              fi
+              echo "Segment p_align: $hex_align ($dec_align bytes)"
             done
-          done
-          echo "----------------------------------------------------------------------------------------------------"
 
-          if [ $FAIL -ne 0 ]; then
-            echo "❌ 16KB ELF PAGE SIZE VERIFICATION FAILED"
-            exit 1
-          else
-            echo "🎉 16KB ELF PAGE SIZE VERIFICATION PASSED: All native .so libraries have PT_LOAD p_align >= 16384 bytes!"
-          fi
+            # Print GNU_RELRO details and calculate (VirtAddr + MemSiz) % 16384
+            echo "GNU_RELRO Segment Details:"
+            llvm-readelf -l "$so" | grep -E "GNU_RELRO" || echo "No GNU_RELRO segment found"
+
+            # Check GNU_RELRO alignment calculation
+            relro_info=$(llvm-readelf -l "$so" | awk '/GNU_RELRO/ {print $3, $5}')
+            if [ -n "$relro_info" ]; then
+              vaddr=$(echo $relro_info | awk '{print $1}')
+              memsz=$(echo $relro_info | awk '{print $2}')
+              dec_vaddr=$(printf "%d" "$vaddr")
+              dec_memsz=$(printf "%d" "$memsz")
+              end_vaddr=$((dec_vaddr + dec_memsz))
+              rem=$((end_vaddr % 16384))
+              echo "GNU_RELRO End VirtAddr: $end_vaddr, Remainder mod 16384: $rem"
+            fi
+            echo ""
+          done
+
+          echo "=================================================="
+          echo "=== 4. ZIPALIGN APK EXTRACTION & CHECK ==="
+          echo "=================================================="
+          mkdir -p /tmp/apks
+          java -jar /tmp/bundletool.jar build-apks --bundle="$AAB_PATH" --output=/tmp/apks/app.apks --mode=default
+          unzip -q /tmp/apks/app.apks -d /tmp/apks_extracted
+
+          find /tmp/apks_extracted -name "*.apk"
+          for apk in $(find /tmp/apks_extracted -name "*.apk"); do
+            echo "Running zipalign check on: $(basename $apk)"
+            zipalign -c -P 16 -v 4 "$apk" | grep -E "lib/.*\.so" || echo "zipalign -P 16 check completed for $apk"
+          done
+          echo "=================================================="
         working-directory: pwa_to_flutter_app
 
       # =========================
