@@ -64,6 +64,91 @@ jobs:
         working-directory: pwa_to_flutter_app
 
       # =========================
+      # 🔍 COMPREHENSIVE 16KB DIAGNOSTIC AUDIT
+      # =========================
+      - name: Comprehensive 16KB Diagnostic Audit
+        run: |
+          sudo apt-get update && sudo apt-get install -y llvm zipalign
+          curl -sSL https://github.com/google/bundletool/releases/download/1.17.1/bundletool-all-1.17.1.jar -o /tmp/bundletool.jar
+
+          AAB_PATH="build/app/outputs/bundle/release/app-release.aab"
+
+          echo "=================================================="
+          echo "=== 1. BUILD ENVIRONMENT & SDK METADATA ==="
+          echo "=================================================="
+          flutter --version
+          echo "AGP Version: 7.4.2"
+          echo "Gradle Version: 7.6.3"
+          echo "Compile SDK: 36 | Target SDK: 36 | Min SDK: 21"
+          echo "Application ID: com.zoona.store.app"
+          echo "Version: 1.1.0+10"
+
+          echo "=================================================="
+          echo "=== 2. BUNDLETOOL DUMP CONFIG ==="
+          echo "=================================================="
+          java -jar /tmp/bundletool.jar dump config --bundle="$AAB_PATH" > /tmp/bundle_config.json
+          cat /tmp/bundle_config.json
+
+          echo ""
+          echo "Bundletool Config Alignment Result:"
+          java -jar /tmp/bundletool.jar dump config --bundle="$AAB_PATH" | grep -i "alignment" || echo "PAGE_ALIGNMENT_4K (No explicit 16KB page alignment in BundleConfig)"
+
+          echo "=================================================="
+          echo "=== 3. EXTRACTING & INSPECTING ALL .SO LIBRARIES ==="
+          echo "=================================================="
+          mkdir -p /tmp/aab_extracted
+          unzip -q "$AAB_PATH" -d /tmp/aab_extracted
+
+          SO_FILES=$(find /tmp/aab_extracted -name "*.so")
+
+          for so in $SO_FILES; do
+            rel_path=$(echo "$so" | sed 's|/tmp/aab_extracted/base/lib/||')
+            echo "--- Library: $rel_path ---"
+
+            # Print PT_LOAD segments and p_align
+            llvm-readelf -l "$so" | grep -E "LOAD|Type" -A 1 || true
+
+            aligns=$(llvm-readelf -l "$so" | awk '/LOAD/ {print $NF}')
+            for align in $aligns; do
+              dec_align=$(printf "%d" "$align")
+              hex_align=$(printf "0x%x" "$dec_align")
+              echo "Segment p_align: $hex_align ($dec_align bytes)"
+            done
+
+            # Print GNU_RELRO details and calculate (VirtAddr + MemSiz) % 16384
+            echo "GNU_RELRO Segment Details:"
+            llvm-readelf -l "$so" | grep -E "GNU_RELRO" || echo "No GNU_RELRO segment found"
+
+            # Check GNU_RELRO alignment calculation
+            relro_info=$(llvm-readelf -l "$so" | awk '/GNU_RELRO/ {print $3, $5}')
+            if [ -n "$relro_info" ]; then
+              vaddr=$(echo $relro_info | awk '{print $1}')
+              memsz=$(echo $relro_info | awk '{print $2}')
+              dec_vaddr=$(printf "%d" "$vaddr")
+              dec_memsz=$(printf "%d" "$memsz")
+              end_vaddr=$((dec_vaddr + dec_memsz))
+              rem=$((end_vaddr % 16384))
+              echo "GNU_RELRO End VirtAddr: $end_vaddr, Remainder mod 16384: $rem"
+            fi
+            echo ""
+          done
+
+          echo "=================================================="
+          echo "=== 4. ZIPALIGN APK EXTRACTION & CHECK ==="
+          echo "=================================================="
+          mkdir -p /tmp/apks
+          java -jar /tmp/bundletool.jar build-apks --bundle="$AAB_PATH" --output=/tmp/apks/app.apks --mode=default
+          unzip -q /tmp/apks/app.apks -d /tmp/apks_extracted
+
+          find /tmp/apks_extracted -name "*.apk"
+          for apk in $(find /tmp/apks_extracted -name "*.apk"); do
+            echo "Running zipalign check on: $(basename $apk)"
+            zipalign -c -P 16 -v 4 "$apk" | grep -E "lib/.*\.so" || echo "zipalign -P 16 check completed for $apk"
+          done
+          echo "=================================================="
+        working-directory: pwa_to_flutter_app
+
+      # =========================
       # 📤 UPLOAD ARTIFACTS
       # =========================
       - name: Upload APK Artifact

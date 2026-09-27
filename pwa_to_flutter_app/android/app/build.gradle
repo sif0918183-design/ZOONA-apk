@@ -33,8 +33,14 @@ apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
 apply plugin: 'com.google.gms.google-services'
 
 android {
-    compileSdkVersion 35
+    compileSdkVersion 36
     ndkVersion flutter.ndkVersion
+
+    packagingOptions {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
@@ -50,7 +56,7 @@ android {
         applicationId "com.zoona.store.app"
         
         minSdkVersion 21
-        targetSdkVersion 35
+        targetSdkVersion 36
         
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
@@ -61,6 +67,15 @@ android {
             onesignal_app_id: "3eaf2c1e-f189-4b86-bcab-765d70b6e957",
             onesignal_google_project_number: "REMOTE"
         ]
+
+        externalNativeBuild {
+            cmake {
+                arguments "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON"
+            }
+            ndkBuild {
+                arguments "APP_SUPPORT_FLEXIBLE_PAGE_SIZES=true"
+            }
+        }
     }
 
     signingConfigs {
