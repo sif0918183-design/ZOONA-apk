@@ -51,6 +51,16 @@ class WebViewPopup extends StatelessWidget {
                       },
                       initialSettings: webViewInitialSettings,
                       windowId: createWindowAction.windowId,
+                      shouldOverrideUrlLoading: (controller, nav) =>
+                          applyUrlPolicy(nav),
+                      onCreateWindow: (controller, innerAction) async {
+                        final uri = innerAction.request.url;
+                        if (uri == null) return false;
+                        if (await shouldOpenExternally(uri)) return false;
+                        if (!context.mounted) return false;
+                        _openNestedPopup(context, innerAction);
+                        return true;
+                      },
                       onGeolocationPermissionsShowPrompt:
                           (controller, origin) async {
                         return GeolocationPermissionShowPromptResponse(
@@ -104,7 +114,7 @@ class WebViewPopup extends StatelessWidget {
                           if (!(await isPWAInstalled())) {
                             await controller.loadData(
                                 data: kHTMLErrorPageNotInstalled);
-                          } else if (request.url.host != kPwaHost) {
+                          } else if (!isInternalHost(request.url.host)) {
                             await controller.loadData(data: kHTMLErrorPage);
                           }
                         }
@@ -117,4 +127,19 @@ class WebViewPopup extends StatelessWidget {
           );
         });
   }
+}
+
+void _openNestedPopup(BuildContext context, CreateWindowAction action) {
+  showDialog(
+    context: context,
+    builder: (context) => WebViewPopup(
+      createWindowAction: action,
+      popupWebViewSettings: InAppWebViewSettings(
+        javaScriptEnabled: true,
+        domStorageEnabled: true,
+        useShouldOverrideUrlLoading: true,
+        supportMultipleWindows: true,
+      ),
+    ),
+  );
 }

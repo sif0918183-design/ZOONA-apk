@@ -55,7 +55,7 @@ android {
         // نصيحة: قم بتغيير الـ Application ID لاحقاً ليكون فريداً بك
         applicationId "com.zoona.store.app"
         
-        minSdkVersion 21
+        minSdkVersion 24
         targetSdkVersion 36
         
         versionCode flutterVersionCode.toInteger()
