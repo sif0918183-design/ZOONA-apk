@@ -12,8 +12,8 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart'
     as fln;
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'constants.dart';
+import 'webview_popup.dart';
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -351,6 +351,7 @@ class _ZoonaHomeState extends State<ZoonaHome> {
                 domStorageEnabled: true,
                 geolocationEnabled: true,
                 useShouldOverrideUrlLoading: true,
+                supportMultipleWindows: true,
                 userAgent:
                     "Mozilla/5.0 (Linux; Android 13; en-US) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36",
               ),
@@ -374,19 +375,39 @@ class _ZoonaHomeState extends State<ZoonaHome> {
                 if (fcmToken != null) _sendTokenToPWA(fcmToken!);
                 _showNotificationPermissionDialog();
               },
-              shouldOverrideUrlLoading: (controller, nav) async {
-                final uri = nav.request.url!;
-                if (['whatsapp', 'tel', 'sms', 'mailto'].contains(uri.scheme) ||
-                    uri.toString().contains('wa.me')) {
-                  try {
-                    await launchUrl(uri, mode: LaunchMode.externalApplication);
-                  } catch (_) {}
-                  return NavigationActionPolicy.CANCEL;
-                }
-                return NavigationActionPolicy.ALLOW;
+              shouldOverrideUrlLoading: (controller, nav) =>
+                  applyUrlPolicy(nav),
+              onCreateWindow: (controller, createWindowAction) async {
+                final uri = createWindowAction.request.url;
+                // Unknown target: cancel the window instead of opening anything.
+                if (uri == null) return false;
+
+                // External or app-handler target: open it outside and drop the
+                // popup so it never loads inside the app.
+                if (await shouldOpenExternally(uri)) return false;
+
+                // Confirmed internal target: show it in a popup WebView.
+                if (!mounted) return false;
+                _openPopup(createWindowAction);
+                return true;
               },
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  void _openPopup(CreateWindowAction createWindowAction) {
+    showDialog(
+      context: context,
+      builder: (context) => WebViewPopup(
+        createWindowAction: createWindowAction,
+        popupWebViewSettings: InAppWebViewSettings(
+          javaScriptEnabled: true,
+          domStorageEnabled: true,
+          useShouldOverrideUrlLoading: true,
+          supportMultipleWindows: true,
         ),
       ),
     );
