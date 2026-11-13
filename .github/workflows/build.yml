@@ -92,7 +92,7 @@ jobs:
           flutter --version
           echo "AGP Version: 7.4.2"
           echo "Gradle Version: 7.6.3"
-          echo "Compile SDK: 36 | Target SDK: 36 | Min SDK: 21"
+          echo "Compile SDK: 36 | Target SDK: 36 | Min SDK: 24"
           echo "Application ID: com.zoona.store.app"
           echo "Version: 1.1.0+10"
 
