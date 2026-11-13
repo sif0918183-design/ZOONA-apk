@@ -16,6 +16,19 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      # Gradle 7.6.3 requires Java 17; the runner default (Java 25) breaks the
+      # Gradle settings script with "Unsupported class file major version 69".
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Verify Java version
+        run: |
+          java -version
+          echo "JAVA_HOME=$JAVA_HOME"
+
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
