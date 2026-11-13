@@ -9,6 +9,10 @@ final kPwaHost = kPwaUri.host;
 // Kept empty by default: Zoona auth/payment flows run on the internal domain.
 const kTrustedInternalHosts = <String>[];
 
+/// Hosts inside the Zoona domain that must still open in the external browser
+/// (e.g. Tracka). Matched exactly, so no other subdomain is affected.
+const kExternalHosts = <String>{'tracka.zoonasd.com'};
+
 /// App-handler schemes that are always forwarded to their native app.
 const _kAppSchemes = <String>{'whatsapp', 'tel', 'sms', 'mailto'};
 
@@ -46,7 +50,9 @@ Future<bool> shouldOpenExternally(WebUri uri) async {
 
   final scheme = uri.scheme.toLowerCase();
   if (scheme == 'http' || scheme == 'https') {
-    if (isInternalHost(uri.host) || kTrustedInternalHosts.contains(uri.host)) {
+    final forcedExternal = kExternalHosts.contains(uri.host.toLowerCase());
+    if (!forcedExternal &&
+        (isInternalHost(uri.host) || kTrustedInternalHosts.contains(uri.host))) {
       return false;
     }
     await launchExternalUrl(uri);
